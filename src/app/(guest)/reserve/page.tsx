@@ -4,15 +4,14 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Button, Input, Card, Textarea } from "@/components/ui";
 import { format, addDays } from "date-fns";
-import { Calendar, Clock, Users, Check } from "lucide-react";
+import { Calendar, Clock, Users, Check, MapPin } from "lucide-react";
 
-// TODO: Make dynamic per location
-const LOCATION_ID = "00000000-0000-0000-0000-000000000001";
-
-type Step = "details" | "time" | "confirm" | "done";
+type Step = "location" | "details" | "time" | "confirm" | "done";
 
 export default function ReservePage() {
-  const [step, setStep] = useState<Step>("details");
+  const [step, setStep] = useState<Step>("location");
+  const [locationId, setLocationId] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [partySize, setPartySize] = useState(2);
   const [selectedTime, setSelectedTime] = useState("");
@@ -23,13 +22,24 @@ export default function ReservePage() {
   const [specialRequests, setSpecialRequests] = useState("");
   const [confirmationToken, setConfirmationToken] = useState("");
 
+  const { data: publicLocations, isLoading: locationsLoading } =
+    trpc.table.getPublicLocations.useQuery(undefined, {
+      enabled: step === "location",
+    });
+
   const { data: slots, isLoading: slotsLoading } =
     trpc.reservation.getAvailability.useQuery(
-      { locationId: LOCATION_ID, date, partySize },
-      { enabled: step === "time" || step === "details" }
+      { locationId, date, partySize },
+      { enabled: !!locationId && (step === "time" || step === "details") }
     );
 
   const createMutation = trpc.reservation.create.useMutation();
+
+  function handleSelectLocation(id: string, name: string) {
+    setLocationId(id);
+    setLocationName(name);
+    setStep("details");
+  }
 
   function handleSelectDateParty() {
     setStep("time");
@@ -42,7 +52,7 @@ export default function ReservePage() {
 
   async function handleConfirm() {
     const result = await createMutation.mutateAsync({
-      locationId: LOCATION_ID,
+      locationId,
       firstName,
       lastName: lastName || undefined,
       phone,
@@ -70,6 +80,50 @@ export default function ReservePage() {
           <p className="text-sm text-text-muted mt-1">Make a Reservation</p>
         </div>
 
+        {/* Step: Location */}
+        {step === "location" && (
+          <Card>
+            <div className="space-y-4">
+              <h2 className="text-lg font-display font-semibold text-text">
+                Choose a Location
+              </h2>
+
+              {locationsLoading ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-20 bg-surface-alt rounded-lg animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : !publicLocations || publicLocations.length === 0 ? (
+                <p className="text-center py-6 text-text-muted">
+                  No locations are currently available for reservations.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {publicLocations.map((loc) => (
+                    <button
+                      key={loc.id}
+                      onClick={() => handleSelectLocation(loc.id, loc.name)}
+                      className="w-full text-left p-4 rounded-lg border border-border bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                    >
+                      <div className="font-semibold text-text">{loc.name}</div>
+                      {loc.address && (
+                        <div className="flex items-center gap-1 mt-1 text-sm text-text-muted">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          {loc.address}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
         {/* Step: Date & Party Size */}
         {step === "details" && (
           <Card>
@@ -80,6 +134,19 @@ export default function ReservePage() {
               }}
               className="space-y-4"
             >
+              <button
+                type="button"
+                onClick={() => setStep("location")}
+                className="text-sm text-primary hover:underline cursor-pointer"
+              >
+                &larr; Change location
+              </button>
+
+              <div className="flex items-center gap-2 text-sm bg-surface-alt rounded-lg p-3">
+                <MapPin className="h-4 w-4 text-text-muted shrink-0" />
+                <span className="font-medium text-text">{locationName}</span>
+              </div>
+
               <Input
                 label="Date"
                 type="date"
@@ -128,6 +195,10 @@ export default function ReservePage() {
                 &larr; Change date or party size
               </button>
               <div className="flex items-center gap-4 text-sm text-text-muted">
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-4 w-4" />
+                  {locationName}
+                </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
                   {format(new Date(date + "T00:00:00"), "EEEE, MMMM d")}
@@ -189,6 +260,10 @@ export default function ReservePage() {
               </button>
 
               <div className="flex items-center gap-4 text-sm bg-surface-alt rounded-lg p-3">
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-4 w-4 text-text-muted" />
+                  {locationName}
+                </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4 text-text-muted" />
                   {format(new Date(date + "T00:00:00"), "MMM d")}
@@ -272,6 +347,7 @@ export default function ReservePage() {
                 You&apos;re Confirmed!
               </h2>
               <div className="text-sm text-text-muted space-y-1">
+                <p>{locationName}</p>
                 <p>
                   {format(new Date(date + "T00:00:00"), "EEEE, MMMM d")} at{" "}
                   {selectedTime}

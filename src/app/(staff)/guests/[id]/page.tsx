@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
+import { useLocation } from "@/components/dashboard/location-provider";
 import {
   Card,
   CardHeader,
   CardTitle,
   Badge,
   Button,
-  Input,
   Textarea,
   TriggerBadge,
 } from "@/components/ui";
@@ -19,27 +19,21 @@ import {
   User,
   Phone,
   Mail,
-  Calendar,
-  Tag,
-  Plus,
   AlertTriangle,
-  MessageSquare,
   Utensils,
 } from "lucide-react";
 
-// TODO: Get from session
-const DEMO_LOCATION_ID = "00000000-0000-0000-0000-000000000001";
-
 export default function GuestProfilePage() {
   const { id } = useParams<{ id: string }>();
+  const { locationId, isLoading: locLoading } = useLocation();
   const [noteContent, setNoteContent] = useState("");
   const [noteFlagged, setNoteFlagged] = useState(false);
   const [newTag, setNewTag] = useState("");
 
-  const { data: profile, isLoading } = trpc.guest.getProfile.useQuery({
-    guestId: id,
-    locationId: DEMO_LOCATION_ID,
-  });
+  const { data: profile, isLoading } = trpc.guest.getProfile.useQuery(
+    { guestId: id, locationId },
+    { enabled: !!locationId }
+  );
 
   const addNoteMutation = trpc.guest.addNote.useMutation();
   const addTagMutation = trpc.guest.addTag.useMutation();
@@ -47,7 +41,7 @@ export default function GuestProfilePage() {
   const utils = trpc.useUtils();
 
   function invalidate() {
-    utils.guest.getProfile.invalidate({ guestId: id, locationId: DEMO_LOCATION_ID });
+    utils.guest.getProfile.invalidate({ guestId: id, locationId });
   }
 
   async function handleAddNote() {
@@ -74,7 +68,7 @@ export default function GuestProfilePage() {
     invalidate();
   }
 
-  if (isLoading || !profile) {
+  if (locLoading || isLoading || !profile) {
     return (
       <div className="p-4 lg:p-6">
         <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
@@ -165,7 +159,7 @@ export default function GuestProfilePage() {
         </Card>
       </div>
 
-      {/* Details */}
+      {/* Dietary Info */}
       {(profile.dietaryRestrictions || profile.allergies) && (
         <Card>
           <CardHeader>
@@ -194,14 +188,12 @@ export default function GuestProfilePage() {
             <CardTitle>Notes</CardTitle>
           </CardHeader>
           <div className="space-y-3">
-            <div className="flex gap-2">
-              <Textarea
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                placeholder="Add a note..."
-                className="min-h-[60px]"
-              />
-            </div>
+            <Textarea
+              value={noteContent}
+              onChange={(e) => setNoteContent(e.target.value)}
+              placeholder="Add a note..."
+              className="min-h-[60px]"
+            />
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input

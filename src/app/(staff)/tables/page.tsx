@@ -1,10 +1,19 @@
 "use client";
 
 import { TableGrid } from "@/components/dashboard/table-grid";
-
-const DEMO_LOCATION_ID = "00000000-0000-0000-0000-000000000001";
+import { useLocation } from "@/components/dashboard/location-provider";
 
 export default function TablesPage() {
+  const { locationId, isLoading } = useLocation();
+
+  if (isLoading || !locationId) {
+    return (
+      <div className="p-4 lg:p-6 max-w-3xl">
+        <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-3xl space-y-6">
       <div>
@@ -13,7 +22,7 @@ export default function TablesPage() {
           Click a table to cycle its status
         </p>
       </div>
-      <TableGrid locationId={DEMO_LOCATION_ID} />
+      <TableGrid locationId={locationId} />
     </div>
   );
 }

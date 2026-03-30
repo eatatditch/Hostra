@@ -1,4 +1,7 @@
 import { createSupabaseServer } from "./supabase-server";
+import { db } from "@/lib/db";
+import { staff } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import type { StaffRole } from "@/types";
 
 export interface StaffSession {
@@ -11,30 +14,35 @@ export interface StaffSession {
 }
 
 export async function getSession(): Promise<StaffSession | null> {
-  const supabase = await createSupabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return null;
+    if (!user) return null;
 
-  const { data: staff } = await supabase
-    .from("staff")
-    .select("id, name, role, location_id")
-    .eq("auth_user_id", user.id)
-    .eq("active", true)
-    .single();
+    // Use Drizzle directly to bypass RLS
+    const staffRecord = await db.query.staff.findFirst({
+      where: and(
+        eq(staff.authUserId, user.id),
+        eq(staff.active, true)
+      ),
+    });
 
-  if (!staff) return null;
+    if (!staffRecord) return null;
 
-  return {
-    id: staff.id,
-    authUserId: user.id,
-    email: user.email!,
-    name: staff.name,
-    role: staff.role as StaffRole,
-    locationId: staff.location_id,
-  };
+    return {
+      id: staffRecord.id,
+      authUserId: user.id,
+      email: user.email!,
+      name: staffRecord.name,
+      role: staffRecord.role as StaffRole,
+      locationId: staffRecord.locationId,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function requireSession(

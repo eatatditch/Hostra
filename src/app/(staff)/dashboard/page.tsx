@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Card, CardHeader, CardTitle, Button, Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { ReservationList } from "@/components/dashboard/reservation-list";
 import { WaitlistPanel } from "@/components/dashboard/waitlist-panel";
 import { TableGrid } from "@/components/dashboard/table-grid";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-
-// TODO: Get from auth session
-const DEMO_LOCATION_ID = "00000000-0000-0000-0000-000000000001";
+import { useLocation } from "@/components/dashboard/location-provider";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function DashboardPage() {
+  const { locationId, locationName, isLoading } = useLocation();
   const [selectedDate, setSelectedDate] = useState(
     format(new Date(), "yyyy-MM-dd")
   );
@@ -23,6 +22,14 @@ export default function DashboardPage() {
   }
 
   const isToday = selectedDate === format(new Date(), "yyyy-MM-dd");
+
+  if (isLoading || !locationId) {
+    return (
+      <div className="p-4 lg:p-6">
+        <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -55,18 +62,12 @@ export default function DashboardPage() {
 
       {/* Main grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Reservations — takes 2 cols on XL */}
         <div className="xl:col-span-2 space-y-6">
-          <ReservationList
-            locationId={DEMO_LOCATION_ID}
-            date={selectedDate}
-          />
+          <ReservationList locationId={locationId} date={selectedDate} />
         </div>
-
-        {/* Right sidebar */}
         <div className="space-y-6">
-          <WaitlistPanel locationId={DEMO_LOCATION_ID} />
-          <TableGrid locationId={DEMO_LOCATION_ID} />
+          <WaitlistPanel locationId={locationId} />
+          <TableGrid locationId={locationId} />
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
+import { router, publicProcedure, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
 import { db } from "@/lib/db";
 import { tables, floorPlans, locations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -114,5 +114,18 @@ export const tableRouter = router({
     return db.query.locations.findMany({
       where: eq(locations.active, true),
     });
+  }),
+
+  getPublicLocations: publicProcedure.query(async () => {
+    return db
+      .select({
+        id: locations.id,
+        name: locations.name,
+        slug: locations.slug,
+        address: locations.address,
+      })
+      .from(locations)
+      .where(eq(locations.active, true))
+      .orderBy(locations.name);
   }),
 });

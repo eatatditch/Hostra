@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Button, Input, Card } from "@/components/ui";
-import { Check, Clock } from "lucide-react";
+import { Check, Clock, MapPin } from "lucide-react";
 import { minutesToHumanReadable } from "@/lib/utils";
 
-const LOCATION_ID = "00000000-0000-0000-0000-000000000001";
-
-type Step = "join" | "done";
+type Step = "location" | "join" | "done";
 
 export default function WaitlistJoinPage() {
-  const [step, setStep] = useState<Step>("join");
+  const [step, setStep] = useState<Step>("location");
+  const [locationId, setLocationId] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,11 +19,22 @@ export default function WaitlistJoinPage() {
   const [checkToken, setCheckToken] = useState("");
   const [estimatedWait, setEstimatedWait] = useState(0);
 
+  const { data: publicLocations, isLoading: locationsLoading } =
+    trpc.table.getPublicLocations.useQuery(undefined, {
+      enabled: step === "location",
+    });
+
   const joinMutation = trpc.waitlist.join.useMutation();
+
+  function handleSelectLocation(id: string, name: string) {
+    setLocationId(id);
+    setLocationName(name);
+    setStep("join");
+  }
 
   async function handleJoin() {
     const result = await joinMutation.mutateAsync({
-      locationId: LOCATION_ID,
+      locationId,
       firstName,
       lastName: lastName || undefined,
       phone,
@@ -45,6 +56,49 @@ export default function WaitlistJoinPage() {
           <p className="text-sm text-text-muted mt-1">Join the Waitlist</p>
         </div>
 
+        {step === "location" && (
+          <Card>
+            <div className="space-y-4">
+              <h2 className="text-lg font-display font-semibold text-text">
+                Choose a Location
+              </h2>
+
+              {locationsLoading ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-20 bg-surface-alt rounded-lg animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : !publicLocations || publicLocations.length === 0 ? (
+                <p className="text-center py-6 text-text-muted">
+                  No locations are currently available.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {publicLocations.map((loc) => (
+                    <button
+                      key={loc.id}
+                      onClick={() => handleSelectLocation(loc.id, loc.name)}
+                      className="w-full text-left p-4 rounded-lg border border-border bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                    >
+                      <div className="font-semibold text-text">{loc.name}</div>
+                      {loc.address && (
+                        <div className="flex items-center gap-1 mt-1 text-sm text-text-muted">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          {loc.address}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
         {step === "join" && (
           <Card>
             <form
@@ -54,6 +108,11 @@ export default function WaitlistJoinPage() {
               }}
               className="space-y-4"
             >
+              <div className="flex items-center gap-1.5 text-sm text-text-muted">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span>{locationName}</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label="First Name"
@@ -126,6 +185,10 @@ export default function WaitlistJoinPage() {
               <h2 className="text-xl font-display font-bold">
                 You&apos;re On the List!
               </h2>
+              <div className="flex items-center justify-center gap-1.5 text-sm text-text-muted">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span>{locationName}</span>
+              </div>
               {estimatedWait > 0 && (
                 <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
                   <Clock className="h-4 w-4" />

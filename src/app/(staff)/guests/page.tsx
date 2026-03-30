@@ -3,20 +3,27 @@
 import { useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { Card, Input, Badge } from "@/components/ui";
+import { Card, Badge } from "@/components/ui";
+import { useLocation } from "@/components/dashboard/location-provider";
 import { formatPhone } from "@/lib/utils";
 import { Search, User } from "lucide-react";
 
-// TODO: Get from session
-const DEMO_LOCATION_ID = "00000000-0000-0000-0000-000000000001";
-
 export default function GuestsPage() {
+  const { locationId, isLoading: locLoading } = useLocation();
   const [query, setQuery] = useState("");
 
   const { data: guests, isLoading } = trpc.guest.search.useQuery(
-    { locationId: DEMO_LOCATION_ID, query },
-    { enabled: query.length >= 1 }
+    { locationId, query },
+    { enabled: query.length >= 1 && !!locationId }
   );
+
+  if (locLoading || !locationId) {
+    return (
+      <div className="p-4 lg:p-6">
+        <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
