@@ -8,10 +8,11 @@ export async function GET() {
       return NextResponse.json({ status: "error", message: "DATABASE_URL not set" });
     }
 
-    const masked = dbUrl.replace(/:([^@]+)@/, ":***@");
+    // Show masked URL so we can verify the format
+    const url = new URL(dbUrl);
+    const masked = `${url.protocol}//${url.username}:***@${url.host}${url.pathname}`;
 
-    // Raw postgres connection test — bypass Drizzle
-    const sql = postgres(dbUrl, { prepare: false, ssl: "prefer", max: 1 });
+    const sql = postgres(dbUrl, { prepare: false, ssl: "require", max: 1, connect_timeout: 10 });
 
     const result = await sql`SELECT id, name FROM locations LIMIT 5`;
     await sql.end();
@@ -23,11 +24,19 @@ export async function GET() {
       locations: result,
     });
   } catch (error: any) {
+    const dbUrl = process.env.DATABASE_URL;
+    let masked = "not set";
+    if (dbUrl) {
+      try {
+        const url = new URL(dbUrl);
+        masked = `${url.protocol}//${url.username}:***@${url.host}${url.pathname}`;
+      } catch { masked = "invalid URL format"; }
+    }
     return NextResponse.json({
       status: "error",
+      connectionString: masked,
       message: error.message,
       code: error.code,
-      stack: error.stack?.split("\n").slice(0, 5),
     });
   }
 }
