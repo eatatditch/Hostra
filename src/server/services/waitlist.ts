@@ -1,11 +1,4 @@
-import { db } from "@/lib/db";
-import {
-  waitlistEntries,
-  guests,
-  tables,
-  visits,
-} from "@/lib/db/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
 import type { JoinWaitlistInput } from "@/lib/validators/waitlist";
 
@@ -15,49 +8,56 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
   const phone = normalizePhone(input.phone);
 
   // Find or create guest
-  let guest = await db.query.guests.findFirst({
-    where: eq(guests.phone, phone),
-  });
+  const { data: existingGuest } = await supabase
+    .from("guests")
+    .select("*")
+    .eq("phone", phone)
+    .single();
+
+  let guest = existingGuest;
 
   if (!guest) {
-    const [newGuest] = await db
-      .insert(guests)
-      .values({
+    const { data: newGuest, error: insertError } = await supabase
+      .from("guests")
+      .insert({
         phone,
-        firstName: input.firstName,
-        lastName: input.lastName || null,
+        first_name: input.firstName,
+        last_name: input.lastName || null,
       })
-      .returning();
+      .select()
+      .single();
+    if (insertError) throw new Error(insertError.message);
     guest = newGuest;
   }
 
   // Check if guest is already on the waitlist
-  const existing = await db.query.waitlistEntries.findFirst({
-    where: and(
-      eq(waitlistEntries.guestId, guest.id),
-      eq(waitlistEntries.locationId, input.locationId),
-      eq(waitlistEntries.status, "waiting")
-    ),
-  });
+  const { data: existing } = await supabase
+    .from("waitlist_entries")
+    .select("*")
+    .eq("guest_id", guest.id)
+    .eq("location_id", input.locationId)
+    .eq("status", "waiting")
+    .limit(1)
+    .single();
 
   if (existing) {
     throw new Error("ALREADY_ON_WAITLIST");
   }
 
   // Get current max position
-  const [maxPos] = await db
-    .select({
-      maxPosition: sql<number>`coalesce(max(${waitlistEntries.position}), 0)::int`,
-    })
-    .from(waitlistEntries)
-    .where(
-      and(
-        eq(waitlistEntries.locationId, input.locationId),
-        eq(waitlistEntries.status, "waiting")
-      )
-    );
+  const { data: waitingEntries } = await supabase
+    .from("waitlist_entries")
+    .select("position")
+    .eq("location_id", input.locationId)
+    .eq("status", "waiting")
+    .order("position", { ascending: false })
+    .limit(1);
 
-  const position = maxPos.maxPosition + 1;
+  const maxPosition = waitingEntries && waitingEntries.length > 0
+    ? waitingEntries[0].position
+    : 0;
+
+  const position = maxPosition + 1;
   const estimatedWait = await estimateWaitTime(
     input.locationId,
     input.partySize,
@@ -66,158 +66,173 @@ export async function joinWaitlist(input: JoinWaitlistInput) {
 
   const token = generateToken();
 
-  const [entry] = await db
-    .insert(waitlistEntries)
-    .values({
-      locationId: input.locationId,
-      guestId: guest.id,
-      partySize: input.partySize,
+  const { data: entry, error: entryError } = await supabase
+    .from("waitlist_entries")
+    .insert({
+      location_id: input.locationId,
+      guest_id: guest.id,
+      party_size: input.partySize,
       position,
-      estimatedWaitMinutes: estimatedWait,
+      estimated_wait_minutes: estimatedWait,
       source: input.source,
-      checkToken: token,
+      check_token: token,
     })
-    .returning();
+    .select()
+    .single();
+
+  if (entryError) throw new Error(entryError.message);
 
   return { entry, guest, token };
 }
 
 export async function notifyWaitlistEntry(entryId: string) {
-  const entry = await db.query.waitlistEntries.findFirst({
-    where: eq(waitlistEntries.id, entryId),
-  });
+  const { data: entry, error } = await supabase
+    .from("waitlist_entries")
+    .select("*")
+    .eq("id", entryId)
+    .single();
 
-  if (!entry) throw new Error("NOT_FOUND");
+  if (error || !entry) throw new Error("NOT_FOUND");
   if (entry.status !== "waiting") throw new Error("NOT_WAITING");
 
-  const [updated] = await db
-    .update(waitlistEntries)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("waitlist_entries")
+    .update({
       status: "notified",
-      notifiedAt: new Date(),
+      notified_at: new Date().toISOString(),
     })
-    .where(eq(waitlistEntries.id, entryId))
-    .returning();
+    .eq("id", entryId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
 
   return updated;
 }
 
 export async function seatWaitlistEntry(entryId: string, tableId: string) {
-  const entry = await db.query.waitlistEntries.findFirst({
-    where: eq(waitlistEntries.id, entryId),
-  });
+  const { data: entry, error } = await supabase
+    .from("waitlist_entries")
+    .select("*")
+    .eq("id", entryId)
+    .single();
 
-  if (!entry) throw new Error("NOT_FOUND");
+  if (error || !entry) throw new Error("NOT_FOUND");
   if (entry.status !== "waiting" && entry.status !== "notified") {
     throw new Error("CANNOT_SEAT");
   }
 
-  const now = new Date();
+  const now = new Date().toISOString();
 
-  const [updated] = await db
-    .update(waitlistEntries)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("waitlist_entries")
+    .update({
       status: "seated",
-      tableId,
-      seatedAt: now,
+      table_id: tableId,
+      seated_at: now,
     })
-    .where(eq(waitlistEntries.id, entryId))
-    .returning();
+    .eq("id", entryId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
 
   // Mark table occupied
-  await db
-    .update(tables)
-    .set({ status: "occupied" })
-    .where(eq(tables.id, tableId));
+  await supabase
+    .from("tables")
+    .update({ status: "occupied" })
+    .eq("id", tableId);
 
   // Create visit record
-  await db.insert(visits).values({
-    guestId: entry.guestId,
-    locationId: entry.locationId,
-    waitlistEntryId: entry.id,
-    tableId,
-    partySize: entry.partySize,
-    seatedAt: now,
+  await supabase.from("visits").insert({
+    guest_id: entry.guest_id,
+    location_id: entry.location_id,
+    waitlist_entry_id: entry.id,
+    table_id: tableId,
+    party_size: entry.party_size,
+    seated_at: now,
   });
 
   // Recalculate positions for remaining entries
-  await recalculatePositions(entry.locationId);
+  await recalculatePositions(entry.location_id);
 
   return updated;
 }
 
 export async function removeWaitlistEntry(entryId: string) {
-  const entry = await db.query.waitlistEntries.findFirst({
-    where: eq(waitlistEntries.id, entryId),
-  });
+  const { data: entry, error } = await supabase
+    .from("waitlist_entries")
+    .select("*")
+    .eq("id", entryId)
+    .single();
 
-  if (!entry) throw new Error("NOT_FOUND");
+  if (error || !entry) throw new Error("NOT_FOUND");
   if (entry.status === "seated") throw new Error("ALREADY_SEATED");
 
-  const [updated] = await db
-    .update(waitlistEntries)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("waitlist_entries")
+    .update({
       status: "removed",
-      removedAt: new Date(),
+      removed_at: new Date().toISOString(),
     })
-    .where(eq(waitlistEntries.id, entryId))
-    .returning();
+    .eq("id", entryId)
+    .select()
+    .single();
 
-  await recalculatePositions(entry.locationId);
+  if (updateError) throw new Error(updateError.message);
+
+  await recalculatePositions(entry.location_id);
 
   return updated;
 }
 
 export async function getActiveWaitlist(locationId: string) {
-  return db.query.waitlistEntries.findMany({
-    where: and(
-      eq(waitlistEntries.locationId, locationId),
-      sql`${waitlistEntries.status} IN ('waiting', 'notified')`
-    ),
-    with: {
-      guest: {
-        with: {
-          tags: true,
-        },
-      },
-    },
-    orderBy: (w, { asc }) => [asc(w.position)],
-  });
+  const { data, error } = await supabase
+    .from("waitlist_entries")
+    .select("*, guest:guests(*, tags:guest_tags(*))")
+    .eq("location_id", locationId)
+    .in("status", ["waiting", "notified"])
+    .order("position", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function getWaitlistByToken(token: string) {
-  return db.query.waitlistEntries.findFirst({
-    where: eq(waitlistEntries.checkToken, token),
-    with: {
-      guest: true,
-    },
-  });
+  const { data, error } = await supabase
+    .from("waitlist_entries")
+    .select("*, guest:guests(*)")
+    .eq("check_token", token)
+    .single();
+
+  if (error) return null;
+  return data;
 }
 
 async function recalculatePositions(locationId: string) {
-  const active = await db
-    .select({ id: waitlistEntries.id })
-    .from(waitlistEntries)
-    .where(
-      and(
-        eq(waitlistEntries.locationId, locationId),
-        eq(waitlistEntries.status, "waiting")
-      )
-    )
-    .orderBy(waitlistEntries.createdAt);
+  const { data: active } = await supabase
+    .from("waitlist_entries")
+    .select("id")
+    .eq("location_id", locationId)
+    .eq("status", "waiting")
+    .order("created_at", { ascending: true });
+
+  if (!active) return;
 
   for (let i = 0; i < active.length; i++) {
-    await db
-      .update(waitlistEntries)
-      .set({
+    const estimatedWait = await estimateWaitTime(
+      locationId,
+      0, // party size not needed for position-based estimate
+      i + 1
+    );
+
+    await supabase
+      .from("waitlist_entries")
+      .update({
         position: i + 1,
-        estimatedWaitMinutes: await estimateWaitTime(
-          locationId,
-          0, // party size not needed for position-based estimate
-          i + 1
-        ),
+        estimated_wait_minutes: estimatedWait,
       })
-      .where(eq(waitlistEntries.id, active[i].id));
+      .eq("id", active[i].id);
   }
 }
 
@@ -227,40 +242,31 @@ async function estimateWaitTime(
   position: number
 ): Promise<number> {
   // Get average turn time from recent visits
-  const [recent] = await db
-    .select({
-      avgTurn: sql<number>`
-        coalesce(
-          avg(extract(epoch from (${visits.completedAt} - ${visits.seatedAt})) / 60)::int,
-          ${AVG_TURN_TIME_MINUTES}
-        )
-      `,
-    })
-    .from(visits)
-    .where(
-      and(
-        eq(visits.locationId, locationId),
-        sql`${visits.completedAt} IS NOT NULL`,
-        sql`${visits.seatedAt} > now() - interval '7 days'`
-      )
-    );
+  const { data: recentVisits } = await supabase
+    .from("visits")
+    .select("seated_at, completed_at")
+    .eq("location_id", locationId)
+    .not("completed_at", "is", null)
+    .gte("seated_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
-  const avgTurn = recent?.avgTurn || AVG_TURN_TIME_MINUTES;
+  let avgTurn = AVG_TURN_TIME_MINUTES;
+  if (recentVisits && recentVisits.length > 0) {
+    const totalMinutes = recentVisits.reduce((sum, v) => {
+      const seated = new Date(v.seated_at).getTime();
+      const completed = new Date(v.completed_at).getTime();
+      return sum + (completed - seated) / (1000 * 60);
+    }, 0);
+    avgTurn = Math.round(totalMinutes / recentVisits.length);
+  }
 
   // Get number of currently occupied tables
-  const [tableData] = await db
-    .select({
-      occupiedCount: sql<number>`count(*)::int`,
-    })
-    .from(tables)
-    .where(
-      and(
-        eq(tables.locationId, locationId),
-        eq(tables.status, "occupied")
-      )
-    );
+  const { count: occupiedCount } = await supabase
+    .from("tables")
+    .select("*", { count: "exact", head: true })
+    .eq("location_id", locationId)
+    .eq("status", "occupied");
 
-  const occupiedTables = tableData?.occupiedCount || 1;
+  const occupiedTables = occupiedCount || 1;
 
   // Estimate: position in queue * avg turn time / number of tables turning
   return Math.max(5, Math.round((position * avgTurn) / Math.max(occupiedTables, 1)));

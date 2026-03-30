@@ -1,90 +1,74 @@
-import { db } from "@/lib/db";
-import {
-  guests,
-  guestTags,
-  guestNotes,
-  guestMetrics,
-  reservations,
-  waitlistEntries,
-  visits,
-  communications,
-  triggerEvents,
-} from "@/lib/db/schema";
-import { eq, and, or, ilike, sql } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 export async function searchGuests(query: string, locationId: string) {
-  return db.query.guests.findMany({
-    where: or(
-      ilike(guests.firstName, `%${query}%`),
-      ilike(guests.lastName, `%${query}%`),
-      ilike(guests.phone, `%${query}%`),
-      ilike(guests.email, `%${query}%`)
-    ),
-    with: {
-      tags: true,
-      metrics: {
-        where: eq(guestMetrics.locationId, locationId),
-      },
-    },
-    limit: 25,
-  });
+  const pattern = `%${query}%`;
+
+  const { data: guestRows, error } = await supabase
+    .from("guests")
+    .select("*, tags:guest_tags(*), metrics:guest_metrics(*)")
+    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`)
+    .limit(25);
+
+  if (error) throw new Error(error.message);
+
+  // Filter metrics to only the requested location (client-side)
+  return (guestRows || []).map((g) => ({
+    ...g,
+    metrics: (g.metrics || []).filter((m: { location_id: string }) => m.location_id === locationId),
+  }));
 }
 
 export async function getGuestProfile(guestId: string, locationId: string) {
-  const guest = await db.query.guests.findFirst({
-    where: eq(guests.id, guestId),
-    with: {
-      tags: true,
-      notes: {
-        orderBy: (n, { desc }) => [desc(n.createdAt)],
-        limit: 50,
-      },
-      metrics: {
-        where: eq(guestMetrics.locationId, locationId),
-      },
-    },
-  });
+  const { data: guest, error } = await supabase
+    .from("guests")
+    .select("*, tags:guest_tags(*), notes:guest_notes(*), metrics:guest_metrics(*)")
+    .eq("id", guestId)
+    .single();
 
-  if (!guest) return null;
+  if (error || !guest) return null;
+
+  // Filter metrics to location, sort notes descending, limit 50
+  guest.metrics = (guest.metrics || []).filter(
+    (m: { location_id: string }) => m.location_id === locationId
+  );
+  guest.notes = (guest.notes || [])
+    .sort((a: { created_at: string }, b: { created_at: string }) =>
+      b.created_at.localeCompare(a.created_at)
+    )
+    .slice(0, 50);
 
   // Get visit history for this location
-  const visitHistory = await db.query.visits.findMany({
-    where: and(
-      eq(visits.guestId, guestId),
-      eq(visits.locationId, locationId)
-    ),
-    with: {
-      table: true,
-    },
-    orderBy: (v, { desc }) => [desc(v.seatedAt)],
-    limit: 50,
-  });
+  const { data: visitHistory } = await supabase
+    .from("visits")
+    .select("*, table:tables(*)")
+    .eq("guest_id", guestId)
+    .eq("location_id", locationId)
+    .order("seated_at", { ascending: false })
+    .limit(50);
 
   // Get communication history
-  const commHistory = await db.query.communications.findMany({
-    where: and(
-      eq(communications.guestId, guestId),
-      eq(communications.locationId, locationId)
-    ),
-    orderBy: (c, { desc }) => [desc(c.createdAt)],
-    limit: 50,
-  });
+  const { data: commHistory } = await supabase
+    .from("communications")
+    .select("*")
+    .eq("guest_id", guestId)
+    .eq("location_id", locationId)
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   // Get trigger history
-  const triggerHistory = await db.query.triggerEvents.findMany({
-    where: and(
-      eq(triggerEvents.guestId, guestId),
-      eq(triggerEvents.locationId, locationId)
-    ),
-    orderBy: (t, { desc }) => [desc(t.createdAt)],
-    limit: 50,
-  });
+  const { data: triggerHistory } = await supabase
+    .from("trigger_events")
+    .select("*")
+    .eq("guest_id", guestId)
+    .eq("location_id", locationId)
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   return {
     ...guest,
-    visits: visitHistory,
-    communications: commHistory,
-    triggers: triggerHistory,
+    visits: visitHistory || [],
+    communications: commHistory || [],
+    triggers: triggerHistory || [],
   };
 }
 
@@ -100,24 +84,25 @@ export async function updateGuest(
     allergies?: string | null;
   }
 ) {
-  const [updated] = await db
-    .update(guests)
-    .set({
-      ...(data.firstName && { firstName: data.firstName }),
-      ...(data.lastName !== undefined && { lastName: data.lastName || null }),
-      ...(data.email !== undefined && { email: data.email || null }),
-      ...(data.dateOfBirth !== undefined && { dateOfBirth: data.dateOfBirth }),
-      ...(data.anniversaryDate !== undefined && {
-        anniversaryDate: data.anniversaryDate,
-      }),
-      ...(data.dietaryRestrictions !== undefined && {
-        dietaryRestrictions: data.dietaryRestrictions,
-      }),
-      ...(data.allergies !== undefined && { allergies: data.allergies }),
-      updatedAt: new Date(),
-    })
-    .where(eq(guests.id, guestId))
-    .returning();
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (data.firstName) updateData.first_name = data.firstName;
+  if (data.lastName !== undefined) updateData.last_name = data.lastName || null;
+  if (data.email !== undefined) updateData.email = data.email || null;
+  if (data.dateOfBirth !== undefined) updateData.date_of_birth = data.dateOfBirth;
+  if (data.anniversaryDate !== undefined) updateData.anniversary_date = data.anniversaryDate;
+  if (data.dietaryRestrictions !== undefined) updateData.dietary_restrictions = data.dietaryRestrictions;
+  if (data.allergies !== undefined) updateData.allergies = data.allergies;
+
+  const { data: updated, error } = await supabase
+    .from("guests")
+    .update(updateData)
+    .eq("id", guestId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
 
   return updated;
 }
@@ -128,26 +113,37 @@ export async function addNote(
   content: string,
   flagged = false
 ) {
-  const [note] = await db
-    .insert(guestNotes)
-    .values({ guestId, staffId, content, flagged })
-    .returning();
+  const { data: note, error } = await supabase
+    .from("guest_notes")
+    .insert({ guest_id: guestId, staff_id: staffId, content, flagged })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
   return note;
 }
 
 export async function addTag(guestId: string, tag: string, staffId: string) {
-  const [result] = await db
-    .insert(guestTags)
-    .values({ guestId, tag, createdBy: staffId })
-    .onConflictDoNothing()
-    .returning();
+  const { data: result, error } = await supabase
+    .from("guest_tags")
+    .upsert(
+      { guest_id: guestId, tag, created_by: staffId },
+      { onConflict: "guest_id,tag", ignoreDuplicates: true }
+    )
+    .select()
+    .single();
+
+  // If the upsert returned nothing due to ignoreDuplicates, that's ok
+  if (error && !error.message.includes("No rows")) throw new Error(error.message);
   return result;
 }
 
 export async function removeTag(guestId: string, tag: string) {
-  await db
-    .delete(guestTags)
-    .where(and(eq(guestTags.guestId, guestId), eq(guestTags.tag, tag)));
+  await supabase
+    .from("guest_tags")
+    .delete()
+    .eq("guest_id", guestId)
+    .eq("tag", tag);
 }
 
 export async function mergeGuests(
@@ -155,45 +151,54 @@ export async function mergeGuests(
   duplicateId: string
 ) {
   // Move all references from duplicate to primary
-  await db
-    .update(reservations)
-    .set({ guestId: primaryId })
-    .where(eq(reservations.guestId, duplicateId));
+  await supabase
+    .from("reservations")
+    .update({ guest_id: primaryId })
+    .eq("guest_id", duplicateId);
 
-  await db
-    .update(waitlistEntries)
-    .set({ guestId: primaryId })
-    .where(eq(waitlistEntries.guestId, duplicateId));
+  await supabase
+    .from("waitlist_entries")
+    .update({ guest_id: primaryId })
+    .eq("guest_id", duplicateId);
 
-  await db
-    .update(visits)
-    .set({ guestId: primaryId })
-    .where(eq(visits.guestId, duplicateId));
+  await supabase
+    .from("visits")
+    .update({ guest_id: primaryId })
+    .eq("guest_id", duplicateId);
 
-  await db
-    .update(communications)
-    .set({ guestId: primaryId })
-    .where(eq(communications.guestId, duplicateId));
+  await supabase
+    .from("communications")
+    .update({ guest_id: primaryId })
+    .eq("guest_id", duplicateId);
 
-  await db
-    .update(triggerEvents)
-    .set({ guestId: primaryId })
-    .where(eq(triggerEvents.guestId, duplicateId));
+  await supabase
+    .from("trigger_events")
+    .update({ guest_id: primaryId })
+    .eq("guest_id", duplicateId);
 
   // Move notes (skip tag conflicts)
-  await db
-    .update(guestNotes)
-    .set({ guestId: primaryId })
-    .where(eq(guestNotes.guestId, duplicateId));
+  await supabase
+    .from("guest_notes")
+    .update({ guest_id: primaryId })
+    .eq("guest_id", duplicateId);
 
   // Delete duplicate's tags (primary keeps theirs)
-  await db.delete(guestTags).where(eq(guestTags.guestId, duplicateId));
+  await supabase
+    .from("guest_tags")
+    .delete()
+    .eq("guest_id", duplicateId);
 
   // Delete duplicate's metrics
-  await db.delete(guestMetrics).where(eq(guestMetrics.guestId, duplicateId));
+  await supabase
+    .from("guest_metrics")
+    .delete()
+    .eq("guest_id", duplicateId);
 
   // Delete duplicate guest
-  await db.delete(guests).where(eq(guests.id, duplicateId));
+  await supabase
+    .from("guests")
+    .delete()
+    .eq("id", duplicateId);
 
   return { merged: true, primaryId };
 }

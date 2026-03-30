@@ -1,12 +1,4 @@
-import { db } from "@/lib/db";
-import {
-  reservations,
-  guests,
-  visits,
-  tables,
-  guestMetrics,
-} from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
 import { getAvailableSlots } from "./availability";
 import type {
@@ -29,32 +21,39 @@ export async function createReservation(input: CreateReservationInput) {
   }
 
   // Find or create guest
-  let guest = await db.query.guests.findFirst({
-    where: eq(guests.phone, phone),
-  });
+  const { data: existingGuest } = await supabase
+    .from("guests")
+    .select("*")
+    .eq("phone", phone)
+    .single();
+
+  let guest = existingGuest;
 
   if (!guest) {
-    const [newGuest] = await db
-      .insert(guests)
-      .values({
+    const { data: newGuest, error: insertError } = await supabase
+      .from("guests")
+      .insert({
         phone,
-        firstName: input.firstName,
-        lastName: input.lastName || null,
+        first_name: input.firstName,
+        last_name: input.lastName || null,
         email: input.email || null,
       })
-      .returning();
+      .select()
+      .single();
+    if (insertError) throw new Error(insertError.message);
     guest = newGuest;
   }
 
   // Check for duplicate: same guest, same date, same location, active status
-  const existingReservation = await db.query.reservations.findFirst({
-    where: and(
-      eq(reservations.guestId, guest.id),
-      eq(reservations.locationId, input.locationId),
-      eq(reservations.date, input.date),
-      sql`${reservations.status} NOT IN ('cancelled', 'no_show', 'completed')`
-    ),
-  });
+  const { data: existingReservation } = await supabase
+    .from("reservations")
+    .select("*")
+    .eq("guest_id", guest.id)
+    .eq("location_id", input.locationId)
+    .eq("date", input.date)
+    .not("status", "in", "(cancelled,no_show,completed)")
+    .limit(1)
+    .single();
 
   if (existingReservation) {
     throw new Error("DUPLICATE_RESERVATION");
@@ -62,19 +61,22 @@ export async function createReservation(input: CreateReservationInput) {
 
   const token = generateToken();
 
-  const [reservation] = await db
-    .insert(reservations)
-    .values({
-      locationId: input.locationId,
-      guestId: guest.id,
+  const { data: reservation, error: resError } = await supabase
+    .from("reservations")
+    .insert({
+      location_id: input.locationId,
+      guest_id: guest.id,
       date: input.date,
       time: input.time,
-      partySize: input.partySize,
+      party_size: input.partySize,
       source: input.source,
-      specialRequests: input.specialRequests || null,
-      confirmationToken: token,
+      special_requests: input.specialRequests || null,
+      confirmation_token: token,
     })
-    .returning();
+    .select()
+    .single();
+
+  if (resError) throw new Error(resError.message);
 
   return { reservation, guest, token };
 }
@@ -83,14 +85,16 @@ export async function cancelReservation(
   reservationId: string,
   token?: string
 ) {
-  const reservation = await db.query.reservations.findFirst({
-    where: eq(reservations.id, reservationId),
-  });
+  const { data: reservation, error } = await supabase
+    .from("reservations")
+    .select("*")
+    .eq("id", reservationId)
+    .single();
 
-  if (!reservation) throw new Error("NOT_FOUND");
+  if (error || !reservation) throw new Error("NOT_FOUND");
 
   // If cancelling via guest link, verify token
-  if (token && reservation.confirmationToken !== token) {
+  if (token && reservation.confirmation_token !== token) {
     throw new Error("INVALID_TOKEN");
   }
 
@@ -102,25 +106,30 @@ export async function cancelReservation(
     throw new Error("CANNOT_CANCEL");
   }
 
-  const [updated] = await db
-    .update(reservations)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("reservations")
+    .update({
       status: "cancelled",
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
+      cancelled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
-    .where(eq(reservations.id, reservationId))
-    .returning();
+    .eq("id", reservationId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
 
   return updated;
 }
 
 export async function updateReservation(input: UpdateReservationInput) {
-  const reservation = await db.query.reservations.findFirst({
-    where: eq(reservations.id, input.reservationId),
-  });
+  const { data: reservation, error } = await supabase
+    .from("reservations")
+    .select("*")
+    .eq("id", input.reservationId)
+    .single();
 
-  if (!reservation) throw new Error("NOT_FOUND");
+  if (error || !reservation) throw new Error("NOT_FOUND");
   if (reservation.status === "cancelled" || reservation.status === "completed") {
     throw new Error("CANNOT_MODIFY");
   }
@@ -128,11 +137,11 @@ export async function updateReservation(input: UpdateReservationInput) {
   // If changing date/time/party size, verify new slot availability
   const newDate = input.date || reservation.date;
   const newTime = input.time || reservation.time;
-  const newPartySize = input.partySize || reservation.partySize;
+  const newPartySize = input.partySize || reservation.party_size;
 
   if (input.date || input.time || input.partySize) {
     const slots = await getAvailableSlots({
-      locationId: reservation.locationId,
+      locationId: reservation.location_id,
       date: newDate,
       partySize: newPartySize,
     });
@@ -147,20 +156,25 @@ export async function updateReservation(input: UpdateReservationInput) {
     }
   }
 
-  const [updated] = await db
-    .update(reservations)
-    .set({
-      ...(input.date && { date: input.date }),
-      ...(input.time && { time: input.time }),
-      ...(input.partySize && { partySize: input.partySize }),
-      ...(input.specialRequests !== undefined && {
-        specialRequests: input.specialRequests || null,
-      }),
-      ...(input.tableId !== undefined && { tableId: input.tableId }),
-      updatedAt: new Date(),
-    })
-    .where(eq(reservations.id, input.reservationId))
-    .returning();
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (input.date) updateData.date = input.date;
+  if (input.time) updateData.time = input.time;
+  if (input.partySize) updateData.party_size = input.partySize;
+  if (input.specialRequests !== undefined) {
+    updateData.special_requests = input.specialRequests || null;
+  }
+  if (input.tableId !== undefined) updateData.table_id = input.tableId;
+
+  const { data: updated, error: updateError } = await supabase
+    .from("reservations")
+    .update(updateData)
+    .eq("id", input.reservationId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
 
   return updated;
 }
@@ -169,112 +183,125 @@ export async function seatReservation(
   reservationId: string,
   tableId: string
 ) {
-  const reservation = await db.query.reservations.findFirst({
-    where: eq(reservations.id, reservationId),
-  });
+  const { data: reservation, error } = await supabase
+    .from("reservations")
+    .select("*")
+    .eq("id", reservationId)
+    .single();
 
-  if (!reservation) throw new Error("NOT_FOUND");
+  if (error || !reservation) throw new Error("NOT_FOUND");
   if (reservation.status === "seated") throw new Error("ALREADY_SEATED");
   if (reservation.status === "cancelled" || reservation.status === "no_show") {
     throw new Error("CANNOT_SEAT");
   }
 
-  const now = new Date();
+  const now = new Date().toISOString();
 
   // Update reservation
-  const [updated] = await db
-    .update(reservations)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("reservations")
+    .update({
       status: "seated",
-      tableId,
-      seatedAt: now,
-      updatedAt: now,
+      table_id: tableId,
+      seated_at: now,
+      updated_at: now,
     })
-    .where(eq(reservations.id, reservationId))
-    .returning();
+    .eq("id", reservationId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
 
   // Mark table as occupied
-  await db
-    .update(tables)
-    .set({ status: "occupied" })
-    .where(eq(tables.id, tableId));
+  await supabase
+    .from("tables")
+    .update({ status: "occupied" })
+    .eq("id", tableId);
 
   // Create visit record
-  await db.insert(visits).values({
-    guestId: reservation.guestId,
-    locationId: reservation.locationId,
-    reservationId: reservation.id,
-    tableId,
-    partySize: reservation.partySize,
-    seatedAt: now,
+  await supabase.from("visits").insert({
+    guest_id: reservation.guest_id,
+    location_id: reservation.location_id,
+    reservation_id: reservation.id,
+    table_id: tableId,
+    party_size: reservation.party_size,
+    seated_at: now,
   });
 
   // Update guest metrics
-  await updateGuestMetrics(reservation.guestId, reservation.locationId);
+  await updateGuestMetrics(reservation.guest_id, reservation.location_id);
 
   return updated;
 }
 
 export async function completeReservation(reservationId: string) {
-  const now = new Date();
+  const now = new Date().toISOString();
 
-  const [updated] = await db
-    .update(reservations)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("reservations")
+    .update({
       status: "completed",
-      completedAt: now,
-      updatedAt: now,
+      completed_at: now,
+      updated_at: now,
     })
-    .where(eq(reservations.id, reservationId))
-    .returning();
+    .eq("id", reservationId)
+    .select()
+    .single();
 
-  if (!updated) throw new Error("NOT_FOUND");
+  if (updateError || !updated) throw new Error("NOT_FOUND");
 
   // Mark table as turning
-  if (updated.tableId) {
-    await db
-      .update(tables)
-      .set({ status: "turning" })
-      .where(eq(tables.id, updated.tableId));
+  if (updated.table_id) {
+    await supabase
+      .from("tables")
+      .update({ status: "turning" })
+      .eq("id", updated.table_id);
   }
 
   // Complete the visit
-  await db
-    .update(visits)
-    .set({ completedAt: now })
-    .where(eq(visits.reservationId, reservationId));
+  await supabase
+    .from("visits")
+    .update({ completed_at: now })
+    .eq("reservation_id", reservationId);
 
   return updated;
 }
 
 export async function markNoShow(reservationId: string) {
-  const now = new Date();
+  const now = new Date().toISOString();
 
-  const [updated] = await db
-    .update(reservations)
-    .set({
+  const { data: updated, error: updateError } = await supabase
+    .from("reservations")
+    .update({
       status: "no_show",
-      noShowAt: now,
-      updatedAt: now,
+      no_show_at: now,
+      updated_at: now,
     })
-    .where(eq(reservations.id, reservationId))
-    .returning();
+    .eq("id", reservationId)
+    .select()
+    .single();
 
-  if (!updated) throw new Error("NOT_FOUND");
+  if (updateError || !updated) throw new Error("NOT_FOUND");
 
   // Increment no-show count in guest metrics
-  await db
-    .update(guestMetrics)
-    .set({
-      noShowCount: sql`${guestMetrics.noShowCount} + 1`,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(guestMetrics.guestId, updated.guestId),
-        eq(guestMetrics.locationId, updated.locationId)
-      )
-    );
+  // First fetch current value
+  const { data: metrics } = await supabase
+    .from("guest_metrics")
+    .select("no_show_count")
+    .eq("guest_id", updated.guest_id)
+    .eq("location_id", updated.location_id)
+    .single();
+
+  if (metrics) {
+    await supabase
+      .from("guest_metrics")
+      .update({
+        no_show_count: (metrics.no_show_count || 0) + 1,
+        updated_at: now,
+      })
+      .eq("guest_id", updated.guest_id)
+      .eq("location_id", updated.location_id);
+  }
 
   return updated;
 }
@@ -283,66 +310,62 @@ export async function getReservationsByDate(
   locationId: string,
   date: string
 ) {
-  return db.query.reservations.findMany({
-    where: and(
-      eq(reservations.locationId, locationId),
-      eq(reservations.date, date)
-    ),
-    with: {
-      guest: {
-        with: {
-          tags: true,
-        },
-      },
-      table: true,
-    },
-    orderBy: (r, { asc }) => [asc(r.time)],
-  });
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("*, guest:guests(*, tags:guest_tags(*)), table:tables(*)")
+    .eq("location_id", locationId)
+    .eq("date", date)
+    .order("time", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function getReservationByToken(token: string) {
-  return db.query.reservations.findFirst({
-    where: eq(reservations.confirmationToken, token),
-    with: {
-      guest: true,
-      location: true,
-    },
-  });
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("*, guest:guests(*), location:locations(*)")
+    .eq("confirmation_token", token)
+    .single();
+
+  if (error) return null;
+  return data;
 }
 
 async function updateGuestMetrics(guestId: string, locationId: string) {
-  const visitData = await db
-    .select({
-      count: sql<number>`count(*)::int`,
-      avgParty: sql<number>`avg(${visits.partySize})::real`,
-      firstVisit: sql<Date>`min(${visits.seatedAt})`,
-      lastVisit: sql<Date>`max(${visits.seatedAt})`,
-    })
-    .from(visits)
-    .where(
-      and(eq(visits.guestId, guestId), eq(visits.locationId, locationId))
-    );
+  // Fetch all visits and compute aggregates in JS
+  const { data: visitRows } = await supabase
+    .from("visits")
+    .select("party_size, seated_at")
+    .eq("guest_id", guestId)
+    .eq("location_id", locationId);
 
-  const stats = visitData[0];
+  const rows = visitRows || [];
+  const count = rows.length;
+  const avgParty = count > 0
+    ? rows.reduce((sum, v) => sum + (v.party_size || 0), 0) / count
+    : 0;
 
-  await db
-    .insert(guestMetrics)
-    .values({
-      guestId,
-      locationId,
-      totalVisits: stats.count,
-      avgPartySize: stats.avgParty,
-      firstVisitAt: stats.firstVisit,
-      lastVisitAt: stats.lastVisit,
-    })
-    .onConflictDoUpdate({
-      target: [guestMetrics.guestId, guestMetrics.locationId],
-      set: {
-        totalVisits: stats.count,
-        avgPartySize: stats.avgParty,
-        firstVisitAt: stats.firstVisit,
-        lastVisitAt: stats.lastVisit,
-        updatedAt: new Date(),
+  const seatedDates = rows
+    .map((v) => v.seated_at)
+    .filter(Boolean)
+    .sort();
+
+  const firstVisit = seatedDates[0] || null;
+  const lastVisit = seatedDates[seatedDates.length - 1] || null;
+
+  await supabase
+    .from("guest_metrics")
+    .upsert(
+      {
+        guest_id: guestId,
+        location_id: locationId,
+        total_visits: count,
+        avg_party_size: avgParty,
+        first_visit_at: firstVisit,
+        last_visit_at: lastVisit,
+        updated_at: new Date().toISOString(),
       },
-    });
+      { onConflict: "guest_id,location_id" }
+    );
 }

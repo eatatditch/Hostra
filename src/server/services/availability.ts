@@ -1,6 +1,4 @@
-import { db } from "@/lib/db";
-import { serviceShifts, reservations } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 import { parse, format, addMinutes, isBefore, isAfter } from "date-fns";
 import type { TimeSlot } from "@/types";
 
@@ -19,39 +17,31 @@ export async function getAvailableSlots({
   const dayOfWeek = dateObj.getDay(); // 0=Sun, 6=Sat
 
   // Get active shifts for this day
-  const shifts = await db
-    .select()
-    .from(serviceShifts)
-    .where(
-      and(
-        eq(serviceShifts.locationId, locationId),
-        eq(serviceShifts.dayOfWeek, dayOfWeek),
-        eq(serviceShifts.active, true)
-      )
-    );
+  const { data: shifts, error: shiftsError } = await supabase
+    .from("service_shifts")
+    .select("*")
+    .eq("location_id", locationId)
+    .eq("day_of_week", dayOfWeek)
+    .eq("active", true);
 
-  if (shifts.length === 0) return [];
+  if (shiftsError) throw new Error(shiftsError.message);
+  if (!shifts || shifts.length === 0) return [];
 
   // Get existing reservations for this date (non-cancelled)
-  const existingReservations = await db
-    .select({
-      time: reservations.time,
-      partySize: reservations.partySize,
-    })
-    .from(reservations)
-    .where(
-      and(
-        eq(reservations.locationId, locationId),
-        eq(reservations.date, date),
-        sql`${reservations.status} NOT IN ('cancelled', 'no_show')`
-      )
-    );
+  const { data: existingReservations, error: resError } = await supabase
+    .from("reservations")
+    .select("time, party_size")
+    .eq("location_id", locationId)
+    .eq("date", date)
+    .not("status", "in", "(cancelled,no_show)");
+
+  if (resError) throw new Error(resError.message);
 
   // Build a map of covers already booked per time slot
   const bookedCoversMap = new Map<string, number>();
-  for (const res of existingReservations) {
+  for (const res of existingReservations || []) {
     const timeKey = res.time.slice(0, 5); // HH:mm
-    bookedCoversMap.set(timeKey, (bookedCoversMap.get(timeKey) || 0) + res.partySize);
+    bookedCoversMap.set(timeKey, (bookedCoversMap.get(timeKey) || 0) + res.party_size);
   }
 
   // Generate time slots across all shifts
@@ -59,9 +49,9 @@ export async function getAvailableSlots({
   const now = new Date();
 
   for (const shift of shifts) {
-    const slotDuration = shift.slotDurationMin;
-    const shiftStart = parse(shift.startTime, "HH:mm:ss", dateObj);
-    const shiftEnd = parse(shift.endTime, "HH:mm:ss", dateObj);
+    const slotDuration = shift.slot_duration_min;
+    const shiftStart = parse(shift.start_time, "HH:mm:ss", dateObj);
+    const shiftEnd = parse(shift.end_time, "HH:mm:ss", dateObj);
     // Allow booking up to 1 slot before end of shift
     const lastSlotStart = addMinutes(shiftEnd, -slotDuration);
 
@@ -81,7 +71,7 @@ export async function getAvailableSlots({
       }
 
       const bookedCovers = bookedCoversMap.get(timeStr) || 0;
-      const remainingCovers = shift.maxCovers - bookedCovers;
+      const remainingCovers = shift.max_covers - bookedCovers;
       const available = remainingCovers >= partySize;
 
       slots.push({ time: timeStr, available, remainingCovers });
