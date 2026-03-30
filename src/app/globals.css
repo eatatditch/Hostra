@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  /* Ditch Brand Colors — Primary */
+  --color-ditch-orange: #cd6028;
+  --color-ditch-orange-light: #e07a3a;
+  --color-ditch-orange-dark: #a84d1f;
+
+  /* Ditch Brand Colors — Secondary */
+  --color-ditch-green: #547352;
+  --color-ditch-green-light: #6a8f68;
+  --color-ditch-green-dark: #3f5a3e;
+
+  /* Ditch Brand Colors — Accent */
+  --color-ditch-blue: #325269;
+  --color-ditch-blue-light: #4a7090;
+  --color-ditch-blue-dark: #243c4e;
+
+  /* Neutral & Surface Colors */
+  --color-ditch-sand: #f5f0e8;
+  --color-ditch-sand-dark: #e8dfd2;
+  --color-ditch-cream: #faf8f4;
+  --color-ditch-charcoal: #2c2c2c;
+  --color-ditch-gray: #6b7280;
+  --color-ditch-gray-light: #9ca3af;
+  --color-ditch-gray-dark: #374151;
+
+  /* Semantic Colors */
+  --color-ditch-success: #547352;
+  --color-ditch-warning: #cd6028;
+  --color-ditch-error: #dc2626;
+  --color-ditch-error-dark: #991b1b;
+  --color-ditch-info: #325269;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'DM Sans', 'Inter', system-ui, sans-serif;
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+}
+
+/* CSS Custom Properties for light/dark mode */
+:root {
+  --background: #faf8f4;
+  --foreground: #1a1a1a;
+  --muted: #f5f0e8;
+  --muted-foreground: #6b7280;
+  --border: #e8dfd2;
+  --input: #e8dfd2;
+  --ring: #cd6028;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #cd6028;
+  --primary-foreground: #ffffff;
+  --secondary: #547352;
+  --secondary-foreground: #ffffff;
+  --accent: #325269;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a1a1a;
+    --foreground: #f5f0e8;
+    --muted: #2c2c2c;
+    --muted-foreground: #9ca3af;
+    --border: #374151;
+    --input: #374151;
+    --ring: #e07a3a;
+    --card: #2c2c2c;
+    --card-foreground: #f5f0e8;
+    --popover: #2c2c2c;
+    --popover-foreground: #f5f0e8;
+    --primary: #e07a3a;
+    --primary-foreground: #ffffff;
+    --secondary: #6a8f68;
+    --secondary-foreground: #ffffff;
+    --accent: #4a7090;
+    --accent-foreground: #ffffff;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+  }
+}
+
+/* Base styles */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  h1 { font-size: 2.25rem; }
+  h2 { font-size: 1.875rem; }
+  h3 { font-size: 1.5rem; }
+  h4 { font-size: 1.25rem; }
+  h5 { font-size: 1.125rem; }
+  h6 { font-size: 1rem; }
+
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted-foreground);
+    opacity: 0.7;
+  }
+
+  /* Focus ring utility */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
