@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { locations } from "@/lib/db/schema";
+import postgres from "postgres";
 
 export async function GET() {
   try {
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
-      return NextResponse.json({
-        status: "error",
-        message: "DATABASE_URL not set",
-      });
+      return NextResponse.json({ status: "error", message: "DATABASE_URL not set" });
     }
 
     const masked = dbUrl.replace(/:([^@]+)@/, ":***@");
 
-    const result = await db.select({ id: locations.id, name: locations.name }).from(locations);
+    // Raw postgres connection test — bypass Drizzle
+    const sql = postgres(dbUrl, { prepare: false, ssl: "prefer", max: 1 });
+
+    const result = await sql`SELECT id, name FROM locations LIMIT 5`;
+    await sql.end();
 
     return NextResponse.json({
       status: "ok",
@@ -27,7 +27,7 @@ export async function GET() {
       status: "error",
       message: error.message,
       code: error.code,
-      detail: error.detail,
+      stack: error.stack?.split("\n").slice(0, 5),
     });
   }
 }
