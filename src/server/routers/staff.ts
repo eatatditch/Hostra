@@ -14,12 +14,20 @@ function getAdminClient() {
 
 export const staffRouter = router({
   me: protectedProcedure.query(async ({ ctx }) => {
+    // Check platform admin flag
+    const { data: staffRecord } = await supabase
+      .from("staff")
+      .select("is_platform_admin")
+      .eq("id", ctx.session.id)
+      .single();
+
     return {
       id: ctx.session.id,
       name: ctx.session.name,
       email: ctx.session.email,
       role: ctx.session.role,
       locationId: ctx.session.locationId,
+      isPlatformAdmin: staffRecord?.is_platform_admin || false,
     };
   }),
 

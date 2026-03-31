@@ -31,7 +31,7 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 });
 
 export default function SettingsPage() {
-  const { locationId, locationName, isLoading: locLoading, userRole } = useLocation();
+  const { locationId, locationName, isLoading: locLoading, userRole, isPlatformAdmin } = useLocation();
 
   if (locLoading || !locationId) {
     return (
@@ -60,12 +60,97 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {isPlatformAdmin && <PlatformSettings />}
       <BrandManager />
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />
       <StaffManager />
       <LocationManager />
     </div>
+  );
+}
+
+// ── Platform Settings (HostOS owner only) ─────────────────
+
+function PlatformSettings() {
+  const { data: brand, isLoading } = trpc.table.getBrandSettings.useQuery();
+  const updateMutation = trpc.table.updatePlatformLogo.useMutation();
+  const utils = trpc.useUtils();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", "brand-assets");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { setUploadError(data.error || "Upload failed"); return; }
+      await updateMutation.mutateAsync({ platformLogoUrl: data.url });
+      utils.table.getBrandSettings.invalidate();
+    } catch { setUploadError("Upload failed."); }
+    finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
+  }
+
+  async function handleRemove() {
+    await updateMutation.mutateAsync({ platformLogoUrl: "" });
+    utils.table.getBrandSettings.invalidate();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>HostOS Platform</CardTitle>
+          <p className="text-xs text-text-muted mt-0.5">Platform owner settings — only visible to you</p>
+        </div>
+      </CardHeader>
+      {isLoading ? (
+        <div className="h-16 bg-surface-alt rounded-lg animate-pulse" />
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">HostOS Logo</label>
+            <p className="text-xs text-text-muted mb-2">This logo appears on the login page, admin sidebar, and "Powered by" footer on guest pages.</p>
+            {brand?.platform_logo_url ? (
+              <div className="flex items-center gap-4 p-3 rounded-lg border border-border bg-surface-alt">
+                <img src={brand.platform_logo_url} alt="HostOS" className="h-12 object-contain" />
+                <div className="flex-1" />
+                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} loading={uploading}>Replace</Button>
+                <Button variant="ghost" size="sm" onClick={handleRemove}><Trash2 className="h-3.5 w-3.5 text-status-error" /></Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full p-6 rounded-lg border-2 border-dashed border-primary/30 hover:border-primary transition-colors cursor-pointer text-center bg-primary/5"
+              >
+                {uploading ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
+                    <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Uploading...
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-medium text-primary">Upload HostOS Logo</p>
+                    <p className="text-xs text-text-muted mt-1">PNG, JPG, SVG, or WebP</p>
+                  </div>
+                )}
+              </button>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleFileUpload} className="hidden" />
+            {uploadError && <p className="text-sm text-status-error mt-1">{uploadError}</p>}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

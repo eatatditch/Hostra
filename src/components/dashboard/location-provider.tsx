@@ -16,6 +16,7 @@ interface LocationContextType {
   locations: { id: string; name: string; slug: string }[];
   isLoading: boolean;
   userRole: string;
+  isPlatformAdmin: boolean;
 }
 
 const LocationContext = createContext<LocationContextType>({
@@ -25,6 +26,7 @@ const LocationContext = createContext<LocationContextType>({
   locations: [],
   isLoading: true,
   userRole: "",
+  isPlatformAdmin: false,
 });
 
 export function useLocation() {
@@ -71,7 +73,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   return (
     <LocationContext.Provider
-      value={{ locationId, locationName, setLocation, locations, isLoading, userRole: me?.role || "" }}
+      value={{ locationId, locationName, setLocation, locations, isLoading, userRole: me?.role || "", isPlatformAdmin: me?.isPlatformAdmin || false }}
     >
       {children}
     </LocationContext.Provider>

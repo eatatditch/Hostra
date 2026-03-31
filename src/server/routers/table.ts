@@ -370,9 +370,27 @@ export const tableRouter = router({
       .select("*")
       .limit(1)
       .single();
-    if (error) return { brand_name: "Ditch", logo_url: null, website_url: null };
+    if (error) return { brand_name: "Ditch", logo_url: null, website_url: null, platform_logo_url: null };
     return data;
   }),
+
+  updatePlatformLogo: protectedProcedure
+    .input(z.object({ platformLogoUrl: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      // Check platform admin
+      const { data: staff } = await supabase.from("staff").select("is_platform_admin").eq("id", ctx.session.id).single();
+      if (!staff?.is_platform_admin) throw new Error("Only platform admins can update the HostOS logo");
+
+      const { data: existing } = await supabase.from("brand_settings").select("id").limit(1).single();
+      if (existing) {
+        const { data, error } = await supabase.from("brand_settings")
+          .update({ platform_logo_url: input.platformLogoUrl || null, updated_at: new Date().toISOString() })
+          .eq("id", existing.id).select().single();
+        if (error) throw new Error(error.message);
+        return data;
+      }
+      return null;
+    }),
 
   updateBrandSettings: roleProcedure("admin")
     .input(z.object({

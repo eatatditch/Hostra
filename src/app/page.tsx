@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HostOSLogo } from "@/components/ui";
+import { HostOSLogoStatic as HostOSLogo } from "@/components/ui/hostos-logo";
 
 export default function HomePage() {
   return (
