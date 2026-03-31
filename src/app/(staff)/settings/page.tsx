@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { useLocation } from "@/components/dashboard/location-provider";
 import { FloorPlan } from "@/components/dashboard/floor-plan";
@@ -68,6 +68,9 @@ function BrandManager() {
   const [brandName, setBrandName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (brand && !initialized) {
     setBrandName(brand.brand_name || "");
@@ -77,6 +80,44 @@ function BrandManager() {
 
   async function handleSave() {
     await updateMutation.mutateAsync({ brandName: brandName || undefined, logoUrl: logoUrl || undefined });
+    utils.table.getBrandSettings.invalidate();
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", "brand-assets");
+
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setUploadError(data.error || "Upload failed");
+        return;
+      }
+
+      setLogoUrl(data.url);
+      // Auto-save after upload
+      await updateMutation.mutateAsync({ logoUrl: data.url });
+      utils.table.getBrandSettings.invalidate();
+    } catch {
+      setUploadError("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemoveLogo() {
+    setLogoUrl("");
+    await updateMutation.mutateAsync({ logoUrl: "" });
     utils.table.getBrandSettings.invalidate();
   }
 
@@ -95,18 +136,60 @@ function BrandManager() {
             onChange={(e) => setBrandName(e.target.value)}
             placeholder="e.g. Ditch"
           />
-          <Input
-            label="Logo URL"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            placeholder="https://example.com/logo.png"
-          />
-          {logoUrl && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-text-muted">Preview:</span>
-              <img src={logoUrl} alt="Logo" className="h-12 object-contain" />
-            </div>
-          )}
+
+          {/* Logo upload */}
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">Logo</label>
+            {logoUrl ? (
+              <div className="flex items-center gap-4 p-3 rounded-lg border border-border bg-surface-alt">
+                <img src={logoUrl} alt="Logo" className="h-14 object-contain" />
+                <div className="flex-1" />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    loading={uploading}
+                  >
+                    Replace
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleRemoveLogo}>
+                    <Trash2 className="h-3.5 w-3.5 text-status-error" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full p-6 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors cursor-pointer text-center"
+              >
+                {uploading ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
+                    <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Uploading...
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-medium text-text">Click to upload logo</p>
+                    <p className="text-xs text-text-muted mt-1">PNG, JPG, SVG, or WebP — Max 2MB</p>
+                  </div>
+                )}
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            {uploadError && (
+              <p className="text-sm text-status-error mt-1">{uploadError}</p>
+            )}
+          </div>
+
           <p className="text-xs text-text-muted">
             The brand name and logo appear on guest-facing booking and waitlist pages.
           </p>
