@@ -112,7 +112,7 @@ export default function ReservePage() {
         <BottomWaves />
       </div>
 
-      <div className="relative z-10 flex items-start justify-center pt-44 sm:pt-52 px-4 pb-24">
+      <div className="relative z-10 flex items-start justify-center pt-44 sm:pt-52 px-4 pb-44">
         <div className="w-full max-w-md">
 
           {/* Brand Header */}
