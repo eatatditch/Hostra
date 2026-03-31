@@ -19,14 +19,31 @@ function snapToGrid(value: number): number {
   return Math.round(value / GRID_SNAP) * GRID_SNAP;
 }
 
-function getTableSize(capacity: number) {
-  return 56 + Math.min(capacity - 1, 6) * 12;
-}
+type TableShape = "auto" | "circle" | "square" | "rectangle";
 
-function getTableShape(capacity: number): string {
-  if (capacity <= 2) return "rounded-full";
-  if (capacity <= 4) return "rounded-xl";
-  return "rounded-2xl";
+const SHAPE_OPTIONS = [
+  { value: "auto", label: "Auto (by capacity)" },
+  { value: "circle", label: "Circle" },
+  { value: "square", label: "Square" },
+  { value: "rectangle", label: "Rectangle" },
+];
+
+function getTableDimensions(capacity: number, shape: TableShape): { w: number; h: number; radius: string } {
+  const base = 56 + Math.min(capacity - 1, 6) * 12;
+
+  switch (shape) {
+    case "circle":
+      return { w: base, h: base, radius: "9999px" };
+    case "square":
+      return { w: base, h: base, radius: "12px" };
+    case "rectangle":
+      return { w: base * 1.6, h: base * 0.85, radius: "12px" };
+    case "auto":
+    default:
+      if (capacity <= 2) return { w: base, h: base, radius: "9999px" };
+      if (capacity <= 4) return { w: base, h: base, radius: "12px" };
+      return { w: base * 1.4, h: base * 0.9, radius: "16px" };
+  }
 }
 
 interface FloorPlanProps {
@@ -41,8 +58,8 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
   const [locked, setLocked] = useState(!editable);
   const [showAddTable, setShowAddTable] = useState(false);
   const [editingTable, setEditingTable] = useState<any>(null);
-  const [newTable, setNewTable] = useState({ label: "", capacity: 4, minCapacity: 1 });
-  const [editForm, setEditForm] = useState({ label: "", capacity: 4, minCapacity: 1 });
+  const [newTable, setNewTable] = useState({ label: "", capacity: 4, minCapacity: 1, shape: "auto" as string });
+  const [editForm, setEditForm] = useState({ label: "", capacity: 4, minCapacity: 1, shape: "auto" as string });
 
   const { data: tables, isLoading } = trpc.table.getByLocation.useQuery(
     { locationId },
@@ -147,6 +164,7 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
         label: table.label,
         capacity: table.capacity,
         minCapacity: table.min_capacity,
+        shape: table.shape || "auto",
       });
       setEditingTable(table);
       return;
@@ -172,6 +190,7 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
       label: editForm.label,
       capacity: editForm.capacity,
       minCapacity: editForm.minCapacity,
+      shape: editForm.shape as any,
     });
     setEditingTable(null);
     invalidate();
@@ -195,9 +214,10 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
       minCapacity: newTable.minCapacity,
       positionX: 45,
       positionY: 45,
+      shape: newTable.shape as any,
     });
     setShowAddTable(false);
-    setNewTable({ label: "", capacity: 4, minCapacity: 1 });
+    setNewTable({ label: "", capacity: 4, minCapacity: 1, shape: "auto" });
     invalidate();
   }
 
@@ -290,8 +310,7 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
             </div>
           ) : (
             tables?.map((table: any) => {
-              const size = getTableSize(table.capacity);
-              const shape = getTableShape(table.capacity);
+              const dims = getTableDimensions(table.capacity, table.shape || "auto");
               const style = STATUS_STYLES[table.status] || STATUS_STYLES.available;
 
               return (
@@ -300,7 +319,6 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
                   id={`table-${table.id}`}
                   className={cn(
                     "absolute flex flex-col items-center justify-center border-2 transition-shadow",
-                    shape,
                     style,
                     !locked && editable
                       ? "cursor-grab active:cursor-grabbing ring-2 ring-primary/30"
@@ -313,17 +331,15 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
                   style={{
                     left: `${table.position_x}%`,
                     top: `${table.position_y}%`,
-                    width: size,
-                    height: size,
+                    width: dims.w,
+                    height: dims.h,
+                    borderRadius: dims.radius,
                   }}
                   onPointerDown={(e) => handlePointerDown(e, table.id)}
                   onClick={() => handleTableClick(table)}
                 >
                   <span className="font-bold text-xs leading-none">{table.label}</span>
                   <span className="text-[9px] opacity-70 leading-none mt-0.5">{table.capacity}p</span>
-                  {editable && locked && (
-                    <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 absolute -top-1 -right-1 text-primary" />
-                  )}
                 </div>
               );
             })
@@ -353,6 +369,26 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
             <Input label="Max Capacity" type="number" min={1} max={20} value={newTable.capacity} onChange={(e) => setNewTable({ ...newTable, capacity: parseInt(e.target.value) || 1 })} required />
             <Input label="Min Capacity" type="number" min={1} max={20} value={newTable.minCapacity} onChange={(e) => setNewTable({ ...newTable, minCapacity: parseInt(e.target.value) || 1 })} required />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">Shape</label>
+            <div className="flex gap-2">
+              {SHAPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setNewTable({ ...newTable, shape: opt.value })}
+                  className={cn(
+                    "flex-1 py-2 px-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer text-center",
+                    newTable.shape === opt.value
+                      ? "bg-primary text-white border-primary"
+                      : "bg-white border-border text-text hover:border-primary"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <p className="text-xs text-text-muted">
             Table will appear in the center. Switch to drag mode to position it.
           </p>
@@ -376,6 +412,26 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
           <div className="grid grid-cols-2 gap-3">
             <Input label="Max Capacity" type="number" min={1} max={20} value={editForm.capacity} onChange={(e) => setEditForm({ ...editForm, capacity: parseInt(e.target.value) || 1 })} required />
             <Input label="Min Capacity" type="number" min={1} max={20} value={editForm.minCapacity} onChange={(e) => setEditForm({ ...editForm, minCapacity: parseInt(e.target.value) || 1 })} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">Shape</label>
+            <div className="flex gap-2">
+              {SHAPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, shape: opt.value })}
+                  className={cn(
+                    "flex-1 py-2 px-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer text-center",
+                    editForm.shape === opt.value
+                      ? "bg-primary text-white border-primary"
+                      : "bg-white border-border text-text hover:border-primary"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex gap-2">
             <Button type="submit" className="flex-1" loading={updateMutation.isPending}>Save</Button>
