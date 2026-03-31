@@ -135,6 +135,16 @@ export default function WaitlistJoinPage() {
                       Get Directions →
                     </a>
                   )}
+                  {brand?.website_url && (
+                    <a
+                      href={brand.website_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Visit Our Website →
+                    </a>
+                  )}
                 </div>
               )}
 
@@ -226,6 +236,16 @@ export default function WaitlistJoinPage() {
                       className="text-primary hover:underline text-xs inline-flex items-center gap-1"
                     >
                       Get Directions →
+                    </a>
+                  )}
+                  {brand?.website_url && (
+                    <a
+                      href={brand.website_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Visit Our Website →
                     </a>
                   )}
                 </div>

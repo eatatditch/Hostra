@@ -125,6 +125,18 @@ export default function BookingDetailPage() {
                 </a>
               </div>
             )}
+            {brand?.website_url && (
+              <div className="flex items-center gap-2 text-sm">
+                <a
+                  href={brand.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Visit Our Website
+                </a>
+              </div>
+            )}
           </div>
 
           {reservation.special_requests && (

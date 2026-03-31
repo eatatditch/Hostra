@@ -68,6 +68,7 @@ function BrandManager() {
   const [brandName, setBrandName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,11 +76,12 @@ function BrandManager() {
   if (brand && !initialized) {
     setBrandName(brand.brand_name || "");
     setLogoUrl(brand.logo_url || "");
+    setWebsiteUrl(brand.website_url || "");
     setInitialized(true);
   }
 
   async function handleSave() {
-    await updateMutation.mutateAsync({ brandName: brandName || undefined, logoUrl: logoUrl || undefined });
+    await updateMutation.mutateAsync({ brandName: brandName || undefined, logoUrl: logoUrl || undefined, websiteUrl: websiteUrl || undefined });
     utils.table.getBrandSettings.invalidate();
   }
 
@@ -135,6 +137,12 @@ function BrandManager() {
             value={brandName}
             onChange={(e) => setBrandName(e.target.value)}
             placeholder="e.g. Ditch"
+          />
+          <Input
+            label="Website URL"
+            value={websiteUrl}
+            onChange={(e) => setWebsiteUrl(e.target.value)}
+            placeholder="https://www.eatatditch.com"
           />
 
           {/* Logo upload */}

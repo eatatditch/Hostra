@@ -370,7 +370,7 @@ export const tableRouter = router({
       .select("*")
       .limit(1)
       .single();
-    if (error) return { brand_name: "Ditch", logo_url: null };
+    if (error) return { brand_name: "Ditch", logo_url: null, website_url: null };
     return data;
   }),
 
@@ -378,11 +378,13 @@ export const tableRouter = router({
     .input(z.object({
       brandName: z.string().min(1).max(255).optional(),
       logoUrl: z.string().optional(),
+      websiteUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const mapped: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (input.brandName !== undefined) mapped.brand_name = input.brandName;
       if (input.logoUrl !== undefined) mapped.logo_url = input.logoUrl || null;
+      if (input.websiteUrl !== undefined) mapped.website_url = input.websiteUrl || null;
 
       // Update first record
       const { data: existing } = await supabase.from("brand_settings").select("id").limit(1).single();
