@@ -21,6 +21,7 @@ import {
   Mail,
   AlertTriangle,
   Utensils,
+  Calendar,
 } from "lucide-react";
 
 export default function GuestProfilePage() {
@@ -87,9 +88,9 @@ export default function GuestProfilePage() {
         </div>
         <div className="space-y-1">
           <h1 className="text-2xl font-display font-bold">
-            {profile.firstName} {profile.lastName}
+            {profile.first_name} {profile.last_name}
           </h1>
-          <div className="flex items-center gap-4 text-sm text-text-muted">
+          <div className="flex items-center gap-4 text-sm text-text-muted flex-wrap">
             <span className="flex items-center gap-1">
               <Phone className="h-3.5 w-3.5" />
               {formatPhone(profile.phone)}
@@ -98,6 +99,12 @@ export default function GuestProfilePage() {
               <span className="flex items-center gap-1">
                 <Mail className="h-3.5 w-3.5" />
                 {profile.email}
+              </span>
+            )}
+            {profile.date_of_birth && (
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                Birthday: {format(new Date(profile.date_of_birth + "T00:00:00"), "MMMM d")}
               </span>
             )}
           </div>
@@ -134,25 +141,25 @@ export default function GuestProfilePage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card padding="sm" className="text-center">
-          <p className="text-2xl font-bold text-primary">{metrics?.totalVisits || 0}</p>
+          <p className="text-2xl font-bold text-primary">{metrics?.total_visits || 0}</p>
           <p className="text-xs text-text-muted">Total Visits</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-2xl font-bold text-secondary">
-            {metrics?.noShowCount || 0}
+            {metrics?.no_show_count || 0}
           </p>
           <p className="text-xs text-text-muted">No-Shows</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-2xl font-bold text-accent">
-            {metrics?.avgPartySize?.toFixed(1) || "—"}
+            {metrics?.avg_party_size?.toFixed(1) || "—"}
           </p>
           <p className="text-xs text-text-muted">Avg Party</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-2xl font-bold text-ditch-charcoal">
-            {metrics?.lastVisitAt
-              ? format(new Date(metrics.lastVisitAt), "MMM d")
+            {metrics?.last_visit_at
+              ? format(new Date(metrics.last_visit_at), "MMM d")
               : "—"}
           </p>
           <p className="text-xs text-text-muted">Last Visit</p>
@@ -160,7 +167,7 @@ export default function GuestProfilePage() {
       </div>
 
       {/* Dietary Info */}
-      {(profile.dietaryRestrictions || profile.allergies) && (
+      {(profile.dietary_restrictions || profile.allergies) && (
         <Card>
           <CardHeader>
             <CardTitle>
@@ -168,9 +175,9 @@ export default function GuestProfilePage() {
               Dietary Info
             </CardTitle>
           </CardHeader>
-          {profile.dietaryRestrictions && (
+          {profile.dietary_restrictions && (
             <p className="text-sm">
-              <strong>Restrictions:</strong> {profile.dietaryRestrictions}
+              <strong>Restrictions:</strong> {profile.dietary_restrictions}
             </p>
           )}
           {profile.allergies && (
@@ -226,7 +233,7 @@ export default function GuestProfilePage() {
                   >
                     <p>{note.content}</p>
                     <p className="text-xs text-text-muted mt-1">
-                      {format(new Date(note.createdAt), "MMM d, yyyy h:mm a")}
+                      {format(new Date(note.created_at), "MMM d, yyyy h:mm a")}
                       {note.flagged && (
                         <span className="ml-2 text-status-error font-medium">
                           Flagged
@@ -257,15 +264,15 @@ export default function GuestProfilePage() {
                   >
                     <div>
                       <p className="font-medium">
-                        {format(new Date(visit.seatedAt), "MMM d, yyyy")}
+                        {format(new Date(visit.seated_at), "MMM d, yyyy")}
                       </p>
                       <p className="text-xs text-text-muted">
-                        Party of {visit.partySize}
+                        Party of {visit.party_size}
                         {visit.table && ` · ${visit.table.label}`}
                       </p>
                     </div>
                     <span className="text-xs text-text-muted">
-                      {format(new Date(visit.seatedAt), "h:mm a")}
+                      {format(new Date(visit.seated_at), "h:mm a")}
                     </span>
                   </div>
                 ))}
@@ -287,11 +294,11 @@ export default function GuestProfilePage() {
                     className="flex items-center justify-between py-2 border-b border-border last:border-0"
                   >
                     <TriggerBadge
-                      type={trigger.triggerType}
+                      type={trigger.trigger_type}
                       severity={trigger.severity}
                     />
                     <div className="text-xs text-text-muted text-right">
-                      <p>{format(new Date(trigger.createdAt), "MMM d")}</p>
+                      <p>{format(new Date(trigger.created_at), "MMM d")}</p>
                       {trigger.actioned && (
                         <p className="text-status-success">Actioned</p>
                       )}

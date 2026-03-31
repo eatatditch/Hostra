@@ -71,7 +71,7 @@ export default function GuestsPage() {
                     </div>
                     <div>
                       <p className="font-medium">
-                        {guest.firstName} {guest.lastName}
+                        {guest.first_name} {guest.last_name}
                       </p>
                       <p className="text-sm text-text-muted">
                         {formatPhone(guest.phone)}
@@ -90,7 +90,7 @@ export default function GuestsPage() {
                     ))}
                     {guest.metrics?.[0] && (
                       <span className="text-xs text-text-muted">
-                        {guest.metrics[0].totalVisits} visits
+                        {guest.metrics[0].total_visits} visits
                       </span>
                     )}
                   </div>
