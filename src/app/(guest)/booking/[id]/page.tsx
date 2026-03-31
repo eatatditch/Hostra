@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { Card, Button, Badge, StatusDot } from "@/components/ui";
+import { formatTime12h } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar, Clock, Users, MapPin } from "lucide-react";
 
@@ -83,7 +84,7 @@ export default function BookingDetailPage() {
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-text-muted" />
-              <span>{reservation.time.slice(0, 5)}</span>
+              <span>{formatTime12h(reservation.time)}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Users className="h-4 w-4 text-text-muted" />

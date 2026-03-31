@@ -176,4 +176,95 @@ export const tableRouter = router({
     if (error) throw new Error(error.message);
     return data;
   }),
+
+  // Service Shifts
+  getShifts: protectedProcedure
+    .input(z.object({ locationId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const { data, error } = await supabase
+        .from("service_shifts")
+        .select("*")
+        .eq("location_id", input.locationId)
+        .order("day_of_week", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (error) throw new Error(error.message);
+      return data;
+    }),
+
+  createShift: roleProcedure("admin", "manager")
+    .input(
+      z.object({
+        locationId: z.string().min(1),
+        name: z.string().min(1).max(100),
+        dayOfWeek: z.number().int().min(0).max(6),
+        startTime: z.string(),
+        endTime: z.string(),
+        maxCovers: z.number().int().min(1),
+        slotDurationMin: z.number().int().min(15).default(30),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { data, error } = await supabase
+        .from("service_shifts")
+        .insert({
+          location_id: input.locationId,
+          name: input.name,
+          day_of_week: input.dayOfWeek,
+          start_time: input.startTime,
+          end_time: input.endTime,
+          max_covers: input.maxCovers,
+          slot_duration_min: input.slotDurationMin,
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    }),
+
+  updateShift: roleProcedure("admin", "manager")
+    .input(
+      z.object({
+        shiftId: z.string().min(1),
+        name: z.string().min(1).max(100).optional(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        maxCovers: z.number().int().min(1).optional(),
+        slotDurationMin: z.number().int().min(15).optional(),
+        active: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { shiftId, ...updateData } = input;
+      const mapped: Record<string, unknown> = {};
+      if (updateData.name !== undefined) mapped.name = updateData.name;
+      if (updateData.startTime !== undefined) mapped.start_time = updateData.startTime;
+      if (updateData.endTime !== undefined) mapped.end_time = updateData.endTime;
+      if (updateData.maxCovers !== undefined) mapped.max_covers = updateData.maxCovers;
+      if (updateData.slotDurationMin !== undefined) mapped.slot_duration_min = updateData.slotDurationMin;
+      if (updateData.active !== undefined) mapped.active = updateData.active;
+
+      const { data, error } = await supabase
+        .from("service_shifts")
+        .update(mapped)
+        .eq("id", shiftId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    }),
+
+  deleteShift: roleProcedure("admin", "manager")
+    .input(z.object({ shiftId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const { error } = await supabase
+        .from("service_shifts")
+        .delete()
+        .eq("id", input.shiftId);
+
+      if (error) throw new Error(error.message);
+      return { deleted: true };
+    }),
 });

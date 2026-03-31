@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Button, Input, Card, Textarea } from "@/components/ui";
+import { formatTime12h } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Calendar, Clock, Users, Check, MapPin } from "lucide-react";
 
@@ -232,7 +233,7 @@ export default function ReservePage() {
                         onClick={() => handleSelectTime(slot.time)}
                         className="px-3 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-primary hover:text-white hover:border-primary transition-colors cursor-pointer"
                       >
-                        {slot.time}
+                        {formatTime12h(slot.time)}
                       </button>
                     ))}
                 </div>
@@ -270,7 +271,7 @@ export default function ReservePage() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-4 w-4 text-text-muted" />
-                  {selectedTime}
+                  {formatTime12h(selectedTime)}
                 </span>
                 <span className="flex items-center gap-1">
                   <Users className="h-4 w-4 text-text-muted" />
@@ -350,7 +351,7 @@ export default function ReservePage() {
                 <p>{locationName}</p>
                 <p>
                   {format(new Date(date + "T00:00:00"), "EEEE, MMMM d")} at{" "}
-                  {selectedTime}
+                  {formatTime12h(selectedTime)}
                 </p>
                 <p>
                   Party of {partySize}

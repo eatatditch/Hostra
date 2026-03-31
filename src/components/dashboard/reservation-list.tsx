@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardHeader, CardTitle, Badge, Button, StatusDot, TriggerBadge } from "@/components/ui";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, formatTime12h } from "@/lib/utils";
 import { Clock, Users, MapPin, MessageSquare } from "lucide-react";
 
 interface ReservationListProps {
@@ -107,7 +107,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                   <div className="flex items-center gap-4 text-sm text-text-muted">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5" />
-                      {res.time.slice(0, 5)}
+                      {formatTime12h(res.time)}
                     </span>
                     <span className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
@@ -224,7 +224,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                   <span>
                     {res.guest.firstName} {res.guest.lastName}
                   </span>
-                  <span>{res.time.slice(0, 5)}</span>
+                  <span>{formatTime12h(res.time)}</span>
                 </div>
                 <span className="capitalize">{res.status.replace("_", " ")}</span>
               </div>
