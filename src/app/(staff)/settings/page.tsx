@@ -62,7 +62,7 @@ function ShiftManager({ locationId }: { locationId: string }) {
   const [editingShift, setEditingShift] = useState<any>(null);
   const [form, setForm] = useState({
     name: "Dinner",
-    dayOfWeek: 0,
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6] as number[],
     startTime: "17:00",
     endTime: "22:00",
     maxCovers: 60,
@@ -84,11 +84,21 @@ function ShiftManager({ locationId }: { locationId: string }) {
   }
 
   function resetForm() {
-    setForm({ name: "Dinner", dayOfWeek: 0, startTime: "17:00", endTime: "22:00", maxCovers: 60, slotDurationMin: 30 });
+    setForm({ name: "Dinner", daysOfWeek: [0, 1, 2, 3, 4, 5, 6], startTime: "17:00", endTime: "22:00", maxCovers: 60, slotDurationMin: 30 });
   }
 
   async function handleCreate() {
-    await createMutation.mutateAsync({ locationId, ...form });
+    for (const dayOfWeek of form.daysOfWeek) {
+      await createMutation.mutateAsync({
+        locationId,
+        name: form.name,
+        dayOfWeek,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        maxCovers: form.maxCovers,
+        slotDurationMin: form.slotDurationMin,
+      });
+    }
     setShowAdd(false);
     resetForm();
     invalidate();
@@ -118,7 +128,7 @@ function ShiftManager({ locationId }: { locationId: string }) {
   function openEdit(shift: any) {
     setForm({
       name: shift.name,
-      dayOfWeek: shift.day_of_week,
+      daysOfWeek: [shift.day_of_week],
       startTime: shift.start_time.slice(0, 5),
       endTime: shift.end_time.slice(0, 5),
       maxCovers: shift.max_covers,
@@ -222,6 +232,8 @@ function ShiftManager({ locationId }: { locationId: string }) {
   );
 }
 
+const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 function ShiftForm({
   form, setForm, onSubmit, loading, submitLabel, showDayPicker,
 }: {
@@ -232,12 +244,61 @@ function ShiftForm({
   submitLabel: string;
   showDayPicker?: boolean;
 }) {
+  function toggleDay(day: number) {
+    const current: number[] = form.daysOfWeek;
+    if (current.includes(day)) {
+      setForm({ ...form, daysOfWeek: current.filter((d: number) => d !== day) });
+    } else {
+      setForm({ ...form, daysOfWeek: [...current, day].sort() });
+    }
+  }
+
+  function selectAll() {
+    setForm({ ...form, daysOfWeek: [0, 1, 2, 3, 4, 5, 6] });
+  }
+
+  function selectWeekdays() {
+    setForm({ ...form, daysOfWeek: [1, 2, 3, 4, 5] });
+  }
+
+  function selectWeekends() {
+    setForm({ ...form, daysOfWeek: [0, 6] });
+  }
+
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="space-y-4">
       <Input label="Shift Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Dinner, Brunch, Lunch" required />
+
       {showDayPicker && (
-        <Select label="Day of Week" value={form.dayOfWeek.toString()} onChange={(e) => setForm({ ...form, dayOfWeek: parseInt(e.target.value) })} options={DAY_NAMES.map((name, i) => ({ value: i.toString(), label: name }))} />
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-text">Days</label>
+          <div className="flex gap-1.5">
+            {SHORT_DAYS.map((label, i) => {
+              const selected = form.daysOfWeek.includes(i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => toggleDay(i)}
+                  className={`w-10 h-10 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
+                    selected
+                      ? "bg-primary text-white border-primary"
+                      : "bg-white border-border text-text hover:border-primary"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={selectAll} className="text-xs text-primary hover:underline cursor-pointer">All</button>
+            <button type="button" onClick={selectWeekdays} className="text-xs text-primary hover:underline cursor-pointer">Weekdays</button>
+            <button type="button" onClick={selectWeekends} className="text-xs text-primary hover:underline cursor-pointer">Weekends</button>
+          </div>
+        </div>
       )}
+
       <div className="grid grid-cols-2 gap-3">
         <Select label="Start Time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} options={TIME_OPTIONS} />
         <Select label="End Time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} options={TIME_OPTIONS} />
@@ -246,7 +307,12 @@ function ShiftForm({
         <Input label="Max Covers" type="number" min={1} value={form.maxCovers} onChange={(e) => setForm({ ...form, maxCovers: parseInt(e.target.value) || 1 })} required />
         <Select label="Slot Duration" value={form.slotDurationMin.toString()} onChange={(e) => setForm({ ...form, slotDurationMin: parseInt(e.target.value) })} options={[{ value: "15", label: "15 minutes" }, { value: "30", label: "30 minutes" }, { value: "45", label: "45 minutes" }, { value: "60", label: "60 minutes" }]} />
       </div>
-      <Button type="submit" className="w-full" loading={loading}>{submitLabel}</Button>
+      <Button type="submit" className="w-full" loading={loading} disabled={showDayPicker && form.daysOfWeek.length === 0}>
+        {submitLabel}
+        {showDayPicker && form.daysOfWeek.length > 1 && (
+          <span className="ml-1 text-xs opacity-80">({form.daysOfWeek.length} days)</span>
+        )}
+      </Button>
     </form>
   );
 }
