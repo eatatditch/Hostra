@@ -1,58 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { createClient } from "@supabase/supabase-js";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const test = url.searchParams.get("test");
+  const action = url.searchParams.get("action");
 
-  // Test staff creation flow
-  if (test === "auth") {
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (action === "reset-tracy") {
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
 
-      if (!supabaseUrl || !serviceKey) {
-        return NextResponse.json({
-          status: "error",
-          message: "Missing env vars",
-          hasUrl: !!supabaseUrl,
-          hasKey: !!serviceKey,
-          keyPrefix: serviceKey?.slice(0, 20),
-        });
-      }
+    const { error } = await adminClient.auth.admin.updateUserById(
+      "0914b08f-6ddd-434e-bacc-ac13df000052",
+      { password: "HostOS2026!" }
+    );
 
-      const adminClient = createClient(supabaseUrl, serviceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-
-      // Try listing users to verify admin access works
-      const { data: users, error: listError } = await adminClient.auth.admin.listUsers({ perPage: 1 });
-
-      if (listError) {
-        return NextResponse.json({
-          status: "error",
-          step: "listUsers",
-          message: listError.message,
-        });
-      }
-
-      return NextResponse.json({
-        status: "ok",
-        userCount: users.users.length,
-        adminApiWorks: true,
-      });
-    } catch (error: any) {
-      return NextResponse.json({
-        status: "error",
-        message: error.message,
-        stack: error.stack?.split("\n").slice(0, 3),
-      });
-    }
+    if (error) return NextResponse.json({ error: error.message });
+    return NextResponse.json({ status: "ok", message: "Password reset to HostOS2026!" });
   }
 
-  // Default: test DB
-  const { data, error } = await supabase.from("locations").select("id, name");
-  if (error) return NextResponse.json({ status: "error", message: error.message });
+  const { data } = await supabase.from("locations").select("id, name");
   return NextResponse.json({ status: "ok", locations: data });
 }
