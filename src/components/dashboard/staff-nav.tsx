@@ -11,7 +11,7 @@ import {
   Users,
   Settings,
   BarChart3,
-  MapPin,
+  CalendarDays,
   LogOut,
 } from "lucide-react";
 import { createSupabaseBrowser } from "@/lib/auth/supabase-browser";
@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/waitlist", label: "Waitlist", icon: ListOrdered },
   { href: "/tables", label: "Tables", icon: Grid3X3 },
   { href: "/guests", label: "Guests", icon: Users },
@@ -105,7 +106,7 @@ export function StaffNav() {
       {/* Mobile bottom nav */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-border z-30">
         <div className="flex items-center justify-around py-2">
-          {navItems.slice(0, 5).map((item) => {
+          {navItems.slice(0, 6).map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link

@@ -16,6 +16,16 @@ export async function getAvailableSlots({
   const dateObj = parse(date, "yyyy-MM-dd", new Date());
   const dayOfWeek = dateObj.getDay(); // 0=Sun, 6=Sat
 
+  // Check if date is blocked
+  const { data: blocked } = await supabase
+    .from("blocked_dates")
+    .select("id")
+    .eq("location_id", locationId)
+    .eq("date", date)
+    .limit(1);
+
+  if (blocked && blocked.length > 0) return [];
+
   // Get active shifts for this day
   const { data: shifts, error: shiftsError } = await supabase
     .from("service_shifts")

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { format } from "date-fns";
 import { Badge, Button } from "@/components/ui";
 import { ReservationList } from "@/components/dashboard/reservation-list";
@@ -10,9 +12,19 @@ import { useLocation } from "@/components/dashboard/location-provider";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const { locationId, locationName, isLoading } = useLocation();
+  const searchParams = useSearchParams();
+  const initialDate = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState(
-    format(new Date(), "yyyy-MM-dd")
+    initialDate
   );
 
   function shiftDate(days: number) {

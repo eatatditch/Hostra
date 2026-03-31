@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "@/lib/trpc/init";
+import { supabase } from "@/lib/db";
 import {
   createReservationSchema,
   updateReservationSchema,
@@ -81,5 +82,101 @@ export const reservationRouter = router({
       // Omit confirmation token from public response
       const { confirmation_token, ...safe } = result;
       return safe;
+    }),
+
+  // Calendar: reservation counts by date for a month
+  getMonthSummary: protectedProcedure
+    .input(
+      z.object({
+        locationId: z.string().min(1),
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+      })
+    )
+    .query(async ({ input }) => {
+      const startDate = `${input.year}-${String(input.month).padStart(2, "0")}-01`;
+      const endMonth = input.month === 12 ? 1 : input.month + 1;
+      const endYear = input.month === 12 ? input.year + 1 : input.year;
+      const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+
+      const { data: reservations } = await supabase
+        .from("reservations")
+        .select("date, status, party_size")
+        .eq("location_id", input.locationId)
+        .gte("date", startDate)
+        .lt("date", endDate);
+
+      // Group by date
+      const byDate = new Map<string, { total: number; covers: number; confirmed: number }>();
+      for (const r of reservations || []) {
+        if (!byDate.has(r.date)) byDate.set(r.date, { total: 0, covers: 0, confirmed: 0 });
+        const entry = byDate.get(r.date)!;
+        entry.total++;
+        if (r.status !== "cancelled") {
+          entry.covers += r.party_size || 0;
+          entry.confirmed++;
+        }
+      }
+
+      // Get blocked dates
+      const { data: blocked } = await supabase
+        .from("blocked_dates")
+        .select("date, reason")
+        .eq("location_id", input.locationId)
+        .gte("date", startDate)
+        .lt("date", endDate);
+
+      const blockedSet = new Map<string, string>();
+      for (const b of blocked || []) {
+        blockedSet.set(b.date, b.reason || "");
+      }
+
+      return {
+        reservations: Object.fromEntries(byDate),
+        blockedDates: Object.fromEntries(blockedSet),
+      };
+    }),
+
+  // Block/unblock a date
+  blockDate: protectedProcedure
+    .input(
+      z.object({
+        locationId: z.string().min(1),
+        date: z.string(),
+        reason: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { error } = await supabase
+        .from("blocked_dates")
+        .upsert(
+          {
+            location_id: input.locationId,
+            date: input.date,
+            reason: input.reason || null,
+            created_by: ctx.session.id,
+          },
+          { onConflict: "location_id,date" }
+        );
+
+      if (error) throw new Error(error.message);
+      return { blocked: true };
+    }),
+
+  unblockDate: protectedProcedure
+    .input(
+      z.object({
+        locationId: z.string().min(1),
+        date: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await supabase
+        .from("blocked_dates")
+        .delete()
+        .eq("location_id", input.locationId)
+        .eq("date", input.date);
+
+      return { unblocked: true };
     }),
 });
