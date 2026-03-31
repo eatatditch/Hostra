@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc/client";
 type LogoSize = "xs" | "sm" | "md" | "lg";
 
 const SIZES: Record<LogoSize, { height: number; maxWidth: number }> = {
-  xs: { height: 28, maxWidth: 140 },   // footer "powered by"
+  xs: { height: 80, maxWidth: 300 },   // footer "powered by"
   sm: { height: 80, maxWidth: 300 },   // sidebar
   md: { height: 120, maxWidth: 500 },  // login page
   lg: { height: 160, maxWidth: 600 },  // landing / hero
