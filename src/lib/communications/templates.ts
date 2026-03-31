@@ -39,6 +39,21 @@ const DEFAULT_TEMPLATES: Record<string, { sms: string; email_subject?: string; e
   waitlist_ready: {
     sms: "{{guest_name}}, your table at {{location_name}} is ready! Please head to the host stand. We'll hold it for 5 minutes.",
   },
+  reservation_cancelled: {
+    sms: "Hi {{guest_name}}, your reservation at {{location_name}} for {{date}} at {{time}} has been cancelled. We hope to see you soon!",
+    email_subject: "Reservation Cancelled — {{location_name}}",
+    email_body: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:20px">
+      <h2 style="color:#cd6028">Reservation Cancelled</h2>
+      <p>Hi {{guest_name}},</p>
+      <p>Your reservation at <strong>{{location_name}}</strong> has been cancelled.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr><td style="padding:8px 0;color:#666">Date</td><td style="padding:8px 0;font-weight:600">{{date}}</td></tr>
+        <tr><td style="padding:8px 0;color:#666">Time</td><td style="padding:8px 0;font-weight:600">{{time}}</td></tr>
+      </table>
+      <p>Want to rebook? <a href="{{confirmation_link}}" style="color:#cd6028">Make a new reservation</a></p>
+      <p style="color:#999;font-size:12px;margin-top:24px">— The Ditch Team</p>
+    </div>`,
+  },
   post_visit: {
     sms: "Thanks for dining with us at {{location_name}}, {{guest_name}}! We hope to see you again soon.",
   },

@@ -51,6 +51,7 @@ export default function SettingsPage() {
 
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />
+      <StaffManager />
       <LocationManager />
     </div>
   );
@@ -620,6 +621,234 @@ function TableManager({ locationId }: { locationId: string }) {
           />
           <Button type="submit" className="w-full" loading={createFloorPlanMutation.isPending}>
             Create Floor Plan
+          </Button>
+        </form>
+      </Modal>
+    </>
+  );
+}
+
+// ── Staff Manager ─────────────────────────────────────────
+
+const ROLE_OPTIONS = [
+  { value: "admin", label: "Admin — Full access" },
+  { value: "manager", label: "Manager — Config + CRM + reports" },
+  { value: "host", label: "Host — Dashboard + seating + notes" },
+];
+
+const ROLE_COLORS: Record<string, "primary" | "secondary" | "default"> = {
+  admin: "primary",
+  manager: "secondary",
+  host: "default",
+};
+
+function StaffManager() {
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    name: "",
+    role: "host" as string,
+    locationId: "",
+  });
+
+  const { data: staffList, isLoading } = trpc.staff.list.useQuery();
+  const { data: locations } = trpc.table.getLocations.useQuery();
+  const createMutation = trpc.staff.create.useMutation();
+  const updateMutation = trpc.staff.update.useMutation();
+  const resetPwMutation = trpc.staff.resetPassword.useMutation();
+  const utils = trpc.useUtils();
+
+  function invalidate() {
+    utils.staff.list.invalidate();
+  }
+
+  function resetForm() {
+    setForm({ email: "", password: "", name: "", role: "host", locationId: locations?.[0]?.id || "" });
+  }
+
+  async function handleCreate() {
+    await createMutation.mutateAsync({
+      email: form.email,
+      password: form.password,
+      name: form.name,
+      role: form.role as "admin" | "manager" | "host",
+      locationId: form.locationId,
+    });
+    setShowAdd(false);
+    resetForm();
+    invalidate();
+  }
+
+  async function handleUpdate() {
+    if (!editingStaff) return;
+    await updateMutation.mutateAsync({
+      staffId: editingStaff.id,
+      name: form.name,
+      role: form.role as "admin" | "manager" | "host",
+      locationId: form.locationId,
+    });
+    setEditingStaff(null);
+    invalidate();
+  }
+
+  async function handleToggleActive(staffId: string, currentlyActive: boolean) {
+    await updateMutation.mutateAsync({ staffId, active: !currentlyActive });
+    invalidate();
+  }
+
+  async function handleResetPassword(staffId: string) {
+    const newPw = prompt("Enter new password (min 8 characters):");
+    if (!newPw || newPw.length < 8) return;
+    await resetPwMutation.mutateAsync({ staffId, newPassword: newPw });
+    alert("Password updated.");
+  }
+
+  function openEdit(s: any) {
+    setForm({
+      email: s.email,
+      password: "",
+      name: s.name,
+      role: s.role,
+      locationId: s.location_id,
+    });
+    setEditingStaff(s);
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Staff Accounts</CardTitle>
+          <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
+            <Plus className="h-4 w-4" />
+            Add Staff
+          </Button>
+        </CardHeader>
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="h-16 bg-surface-alt rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {staffList?.map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{s.name}</span>
+                    <Badge variant={ROLE_COLORS[s.role] || "default"}>
+                      {s.role}
+                    </Badge>
+                    {!s.active && <Badge variant="default">Disabled</Badge>}
+                  </div>
+                  <p className="text-xs text-text-muted">
+                    {s.email} · {s.location?.name || "No location"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleResetPassword(s.id)}>
+                    Reset PW
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleToggleActive(s.id, s.active)}>
+                    {s.active ? (
+                      <Trash2 className="h-3.5 w-3.5 text-status-error" />
+                    ) : (
+                      <span className="text-xs text-status-success">Enable</span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Add Staff Modal */}
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Staff Member">
+        <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }} className="space-y-4">
+          <Input
+            label="Full Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+          <Input
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="staff@eatatditch.com"
+            required
+          />
+          <Input
+            label="Password"
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            placeholder="Min 8 characters"
+            required
+          />
+          <Select
+            label="Role"
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            options={ROLE_OPTIONS}
+          />
+          {locations && locations.length > 0 && (
+            <Select
+              label="Default Location"
+              value={form.locationId || locations[0]?.id}
+              onChange={(e) => setForm({ ...form, locationId: e.target.value })}
+              options={locations.map((l: any) => ({ value: l.id, label: l.name }))}
+            />
+          )}
+          <div className="bg-surface-alt rounded-lg p-3 text-xs text-text-muted space-y-1">
+            <p><strong>Admin</strong> — Full access: locations, tables, shifts, staff, CRM, everything</p>
+            <p><strong>Manager</strong> — Config shifts/tables, CRM, reports, seating. Cannot manage locations or staff.</p>
+            <p><strong>Host</strong> — Dashboard, seating, waitlist, guest notes. Cannot edit settings.</p>
+          </div>
+          <Button type="submit" className="w-full" loading={createMutation.isPending}>
+            Create Staff Account
+          </Button>
+        </form>
+      </Modal>
+
+      {/* Edit Staff Modal */}
+      <Modal
+        open={!!editingStaff}
+        onClose={() => setEditingStaff(null)}
+        title={`Edit ${editingStaff?.name || "Staff"}`}
+      >
+        <form onSubmit={(e) => { e.preventDefault(); handleUpdate(); }} className="space-y-4">
+          <Input
+            label="Full Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+          <Select
+            label="Role"
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            options={ROLE_OPTIONS}
+          />
+          {locations && locations.length > 0 && (
+            <Select
+              label="Default Location"
+              value={form.locationId}
+              onChange={(e) => setForm({ ...form, locationId: e.target.value })}
+              options={locations.map((l: any) => ({ value: l.id, label: l.name }))}
+            />
+          )}
+          <Button type="submit" className="w-full" loading={updateMutation.isPending}>
+            Save Changes
           </Button>
         </form>
       </Modal>

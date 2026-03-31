@@ -22,6 +22,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
   const seatMutation = trpc.reservation.seat.useMutation();
   const completeMutation = trpc.reservation.complete.useMutation();
   const noShowMutation = trpc.reservation.markNoShow.useMutation();
+  const undoNoShowMutation = trpc.reservation.undoNoShow.useMutation();
   const utils = trpc.useUtils();
 
   function invalidate() {
@@ -41,6 +42,11 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
 
   async function handleNoShow(reservationId: string) {
     await noShowMutation.mutateAsync({ reservationId });
+    invalidate();
+  }
+
+  async function handleUndoNoShow(reservationId: string) {
+    await undoNoShowMutation.mutateAsync({ reservationId });
     invalidate();
   }
 
@@ -240,20 +246,31 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
           </CardHeader>
           <div className="space-y-1">
             {statusGroups.completed.map((res: any) => (
-              <Link
-                href={`/guests/${res.guest?.id}`}
+              <div
                 key={res.id}
                 className="flex items-center justify-between p-2 rounded text-sm text-text-muted hover:bg-surface-alt/50 transition-colors"
               >
-                <div className="flex items-center gap-2">
+                <Link href={`/guests/${res.guest?.id}`} className="flex items-center gap-2">
                   <StatusDot status={res.status} />
                   <span>
                     {res.guest?.first_name} {res.guest?.last_name}
                   </span>
                   <span>{formatTime12h(res.time)}</span>
+                </Link>
+                <div className="flex items-center gap-2">
+                  <span className="capitalize">{res.status.replace("_", " ")}</span>
+                  {res.status === "no_show" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleUndoNoShow(res.id)}
+                      loading={undoNoShowMutation.isPending}
+                    >
+                      Undo
+                    </Button>
+                  )}
                 </div>
-                <span className="capitalize">{res.status.replace("_", " ")}</span>
-              </Link>
+              </div>
             ))}
           </div>
         </Card>

@@ -5,6 +5,7 @@ import { guestRouter } from "./guest";
 import { triggerRouter } from "./trigger";
 import { tableRouter } from "./table";
 import { analyticsRouter } from "./analytics";
+import { staffRouter } from "./staff";
 
 export const appRouter = router({
   reservation: reservationRouter,
@@ -13,6 +14,7 @@ export const appRouter = router({
   trigger: triggerRouter,
   table: tableRouter,
   analytics: analyticsRouter,
+  staff: staffRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
 import { getAvailableSlots } from "./availability";
+import { dispatchNotification } from "@/lib/communications/dispatcher";
 import type {
   CreateReservationInput,
   UpdateReservationInput,
@@ -78,6 +79,17 @@ export async function createReservation(input: CreateReservationInput) {
 
   if (resError) throw new Error(resError.message);
 
+  // Send confirmation SMS + email (fire and forget)
+  dispatchNotification("reservation_confirmation", {
+    guestId: guest.id,
+    locationId: input.locationId,
+    reservationId: reservation.id,
+    date: input.date,
+    time: input.time,
+    partySize: input.partySize,
+    confirmationToken: token,
+  }, ["sms", "email"]).catch(() => {});
+
   return { reservation, guest, token };
 }
 
@@ -118,6 +130,16 @@ export async function cancelReservation(
     .single();
 
   if (updateError) throw new Error(updateError.message);
+
+  // Send cancellation notification
+  dispatchNotification("reservation_cancelled", {
+    guestId: reservation.guest_id,
+    locationId: reservation.location_id,
+    reservationId: reservation.id,
+    date: reservation.date,
+    time: reservation.time,
+    partySize: reservation.party_size,
+  }, ["sms", "email"]).catch(() => {});
 
   return updated;
 }
@@ -301,6 +323,53 @@ export async function markNoShow(reservationId: string) {
       })
       .eq("guest_id", updated.guest_id)
       .eq("location_id", updated.location_id);
+  }
+
+  return updated;
+}
+
+export async function undoNoShow(reservationId: string) {
+  const now = new Date().toISOString();
+
+  const { data: reservation, error: fetchError } = await supabase
+    .from("reservations")
+    .select("*")
+    .eq("id", reservationId)
+    .single();
+
+  if (fetchError || !reservation) throw new Error("NOT_FOUND");
+  if (reservation.status !== "no_show") throw new Error("NOT_NO_SHOW");
+
+  const { data: updated, error: updateError } = await supabase
+    .from("reservations")
+    .update({
+      status: "confirmed",
+      no_show_at: null,
+      updated_at: now,
+    })
+    .eq("id", reservationId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  // Decrement no-show count in guest metrics
+  const { data: metrics } = await supabase
+    .from("guest_metrics")
+    .select("no_show_count")
+    .eq("guest_id", reservation.guest_id)
+    .eq("location_id", reservation.location_id)
+    .single();
+
+  if (metrics && metrics.no_show_count > 0) {
+    await supabase
+      .from("guest_metrics")
+      .update({
+        no_show_count: metrics.no_show_count - 1,
+        updated_at: now,
+      })
+      .eq("guest_id", reservation.guest_id)
+      .eq("location_id", reservation.location_id);
   }
 
   return updated;

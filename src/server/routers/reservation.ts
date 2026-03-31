@@ -15,6 +15,7 @@ import {
   seatReservation,
   completeReservation,
   markNoShow,
+  undoNoShow,
   getReservationsByDate,
   getReservationByToken,
 } from "@/server/services/reservation";
@@ -61,6 +62,12 @@ export const reservationRouter = router({
     .input(z.object({ reservationId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       return markNoShow(input.reservationId);
+    }),
+
+  undoNoShow: protectedProcedure
+    .input(z.object({ reservationId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      return undoNoShow(input.reservationId);
     }),
 
   getByDate: protectedProcedure
