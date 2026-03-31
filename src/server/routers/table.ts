@@ -115,11 +115,7 @@ export const tableRouter = router({
 
       if (error) throw new Error(error.message);
 
-      // Filter tables to only active ones (client-side since nested filter not supported)
-      return (data || []).map((fp) => ({
-        ...fp,
-        tables: (fp.tables || []).filter((t: { active: boolean }) => t.active),
-      }));
+      return data || [];
     }),
 
   createFloorPlan: roleProcedure("admin", "manager")
