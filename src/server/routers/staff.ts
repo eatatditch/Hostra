@@ -37,21 +37,51 @@ export const staffRouter = router({
     .mutation(async ({ input }) => {
       const adminClient = getAdminClient();
 
-      // Create auth user
+      // Check if staff record already exists for this email
+      const { data: existingStaff } = await supabase
+        .from("staff")
+        .select("id")
+        .eq("email", input.email)
+        .limit(1);
+
+      if (existingStaff && existingStaff.length > 0) {
+        throw new Error("A staff account with this email already exists");
+      }
+
+      // Try to create auth user
+      let authUserId: string;
       const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
         email: input.email,
         password: input.password,
         email_confirm: true,
       });
 
-      if (authError) throw new Error(`Auth error: ${authError.message}`);
-      if (!authData.user) throw new Error("Failed to create auth user");
+      if (authError) {
+        // If user already exists in auth (orphan from previous attempt), find them
+        if (authError.message.includes("already") || authError.message.includes("exists")) {
+          const { data: userList } = await adminClient.auth.admin.listUsers({ perPage: 100 });
+          const existing = userList?.users?.find((u) => u.email === input.email);
+          if (existing) {
+            // Update their password
+            await adminClient.auth.admin.updateUserById(existing.id, { password: input.password });
+            authUserId = existing.id;
+          } else {
+            throw new Error(`Auth error: ${authError.message}`);
+          }
+        } else {
+          throw new Error(`Auth error: ${authError.message}`);
+        }
+      } else if (!authData.user) {
+        throw new Error("Failed to create auth user");
+      } else {
+        authUserId = authData.user.id;
+      }
 
       // Create staff record
       const { data: staffRecord, error: staffError } = await supabase
         .from("staff")
         .insert({
-          auth_user_id: authData.user.id,
+          auth_user_id: authUserId,
           email: input.email,
           name: input.name,
           role: input.role,
@@ -61,8 +91,6 @@ export const staffRouter = router({
         .single();
 
       if (staffError) {
-        // Rollback: delete the auth user if staff record fails
-        await adminClient.auth.admin.deleteUser(authData.user.id);
         throw new Error(`Staff error: ${staffError.message}`);
       }
 

@@ -658,6 +658,7 @@ const ROLE_COLORS: Record<string, "primary" | "secondary" | "default"> = {
 function StaffManager() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -679,19 +680,30 @@ function StaffManager() {
 
   function resetForm() {
     setForm({ email: "", password: "", name: "", role: "host", locationId: locations?.[0]?.id || "" });
+    setError("");
   }
 
   async function handleCreate() {
-    await createMutation.mutateAsync({
-      email: form.email,
-      password: form.password,
-      name: form.name,
-      role: form.role as "admin" | "manager" | "host",
-      locationId: form.locationId,
-    });
-    setShowAdd(false);
-    resetForm();
-    invalidate();
+    setError("");
+    const locId = form.locationId || locations?.[0]?.id || "";
+    if (!locId) {
+      setError("No location available. Create a location first.");
+      return;
+    }
+    try {
+      await createMutation.mutateAsync({
+        email: form.email,
+        password: form.password,
+        name: form.name,
+        role: form.role as "admin" | "manager" | "host",
+        locationId: locId,
+      });
+      setShowAdd(false);
+      resetForm();
+      invalidate();
+    } catch (e: any) {
+      setError(e.message || "Failed to create staff account");
+    }
   }
 
   async function handleUpdate() {
@@ -827,6 +839,9 @@ function StaffManager() {
             <p><strong>Manager</strong> — Config shifts/tables, CRM, reports, seating. Cannot manage locations or staff.</p>
             <p><strong>Host</strong> — Dashboard, seating, waitlist, guest notes. Cannot edit settings.</p>
           </div>
+          {error && (
+            <p className="text-sm text-status-error text-center bg-status-error/5 p-2 rounded">{error}</p>
+          )}
           <Button type="submit" className="w-full" loading={createMutation.isPending}>
             Create Staff Account
           </Button>
