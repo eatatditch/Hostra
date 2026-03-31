@@ -89,8 +89,8 @@ export default function BookingDetailPage() {
             <div className="flex items-center gap-2 text-sm">
               <Users className="h-4 w-4 text-text-muted" />
               <span>
-                {reservation.partySize}{" "}
-                {reservation.partySize === 1 ? "guest" : "guests"}
+                {reservation.party_size}{" "}
+                {reservation.party_size === 1 ? "guest" : "guests"}
               </span>
             </div>
             {reservation.location && (
@@ -101,10 +101,10 @@ export default function BookingDetailPage() {
             )}
           </div>
 
-          {reservation.specialRequests && (
+          {reservation.special_requests && (
             <div className="text-sm">
               <p className="font-medium mb-1">Special Requests</p>
-              <p className="text-text-muted">{reservation.specialRequests}</p>
+              <p className="text-text-muted">{reservation.special_requests}</p>
             </div>
           )}
 

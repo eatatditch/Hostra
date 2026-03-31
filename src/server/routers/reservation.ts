@@ -79,7 +79,7 @@ export const reservationRouter = router({
       const result = await getReservationByToken(input.token);
       if (!result) return null;
       // Omit confirmation token from public response
-      const { confirmationToken, ...safe } = result;
+      const { confirmation_token, ...safe } = result;
       return safe;
     }),
 });

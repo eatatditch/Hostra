@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { Card, CardHeader, CardTitle, Badge, Button, StatusDot, TriggerBadge } from "@/components/ui";
+import { Card, CardHeader, CardTitle, Badge, Button, StatusDot } from "@/components/ui";
 import { formatPhone, formatTime12h } from "@/lib/utils";
-import { Clock, Users, MapPin, MessageSquare } from "lucide-react";
+import { Clock, Users, MapPin, MessageSquare, Phone, User } from "lucide-react";
 
 interface ReservationListProps {
   locationId: string;
@@ -58,12 +59,12 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
     );
   }
 
-  const availableTables = tables?.filter((t) => t.status === "available") || [];
+  const availableTables = tables?.filter((t: any) => t.status === "available") || [];
 
   const statusGroups = {
-    upcoming: reservations?.filter((r) => r.status === "confirmed" || r.status === "reminded") || [],
-    seated: reservations?.filter((r) => r.status === "seated") || [],
-    completed: reservations?.filter((r) => r.status === "completed" || r.status === "no_show" || r.status === "cancelled") || [],
+    upcoming: reservations?.filter((r: any) => r.status === "confirmed" || r.status === "reminded") || [],
+    seated: reservations?.filter((r: any) => r.status === "seated") || [],
+    completed: reservations?.filter((r: any) => r.status === "completed" || r.status === "no_show" || r.status === "cancelled") || [],
   };
 
   return (
@@ -84,18 +85,25 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
           </p>
         ) : (
           <div className="space-y-2">
-            {statusGroups.upcoming.map((res) => (
+            {statusGroups.upcoming.map((res: any) => (
               <div
                 key={res.id}
-                className="flex items-start justify-between p-3 rounded-lg border border-border hover:bg-surface-alt/50 transition-colors"
+                className="p-3 rounded-lg border border-border hover:bg-surface-alt/50 transition-colors"
               >
-                <div className="space-y-1">
+                {/* Guest info — clickable to profile */}
+                <Link
+                  href={`/guests/${res.guest?.id}`}
+                  className="block space-y-1 mb-2"
+                >
                   <div className="flex items-center gap-2">
                     <StatusDot status={res.status} />
+                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-3.5 w-3.5 text-primary" />
+                    </div>
                     <span className="font-semibold">
-                      {res.guest.firstName} {res.guest.lastName}
+                      {res.guest?.first_name} {res.guest?.last_name}
                     </span>
-                    {res.guest.tags?.map((t: any) => (
+                    {res.guest?.tags?.map((t: any) => (
                       <Badge
                         key={t.id}
                         variant={t.tag === "VIP" ? "primary" : "default"}
@@ -104,44 +112,51 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                       </Badge>
                     ))}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-text-muted">
+                  <div className="flex items-center gap-4 text-sm text-text-muted pl-9">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5" />
                       {formatTime12h(res.time)}
                     </span>
                     <span className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
-                      {res.partySize}
+                      {res.party_size}
                     </span>
-                    <span>{formatPhone(res.guest.phone)}</span>
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-3.5 w-3.5" />
+                      {formatPhone(res.guest?.phone || "")}
+                    </span>
                   </div>
-                  {res.specialRequests && (
-                    <p className="text-xs text-text-muted flex items-center gap-1">
+                  {res.special_requests && (
+                    <p className="text-xs text-text-muted flex items-center gap-1 pl-9">
                       <MessageSquare className="h-3 w-3" />
-                      {res.specialRequests}
+                      {res.special_requests}
                     </p>
                   )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {availableTables.length > 0 && (
+                </Link>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pl-9">
+                  {availableTables.length > 0 ? (
                     <select
-                      className="text-xs border border-border rounded px-2 py-1"
+                      className="text-xs border border-border rounded-lg px-2 py-1.5 bg-white cursor-pointer"
                       onChange={(e) => {
                         if (e.target.value) handleSeat(res.id, e.target.value);
                       }}
                       defaultValue=""
                     >
                       <option value="" disabled>
-                        Seat at...
+                        Seat at table...
                       </option>
                       {availableTables
-                        .filter((t) => t.capacity >= res.partySize)
-                        .map((t) => (
+                        .filter((t: any) => t.capacity >= res.party_size)
+                        .map((t: any) => (
                           <option key={t.id} value={t.id}>
-                            {t.label} ({t.capacity})
+                            {t.label} (seats {t.capacity})
                           </option>
                         ))}
                     </select>
+                  ) : (
+                    <span className="text-xs text-text-muted italic">No tables available</span>
                   )}
                   <Button
                     variant="ghost"
@@ -169,16 +184,16 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
             </CardTitle>
           </CardHeader>
           <div className="space-y-2">
-            {statusGroups.seated.map((res) => (
+            {statusGroups.seated.map((res: any) => (
               <div
                 key={res.id}
                 className="flex items-center justify-between p-3 rounded-lg border border-border"
               >
-                <div className="space-y-1">
+                <Link href={`/guests/${res.guest?.id}`} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <StatusDot status="seated" pulse />
                     <span className="font-semibold">
-                      {res.guest.firstName} {res.guest.lastName}
+                      {res.guest?.first_name} {res.guest?.last_name}
                     </span>
                     {res.table && (
                       <Badge variant="secondary">
@@ -186,11 +201,21 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                         {res.table.label}
                       </Badge>
                     )}
+                    {res.guest?.tags?.map((t: any) => (
+                      <Badge
+                        key={t.id}
+                        variant={t.tag === "VIP" ? "primary" : "default"}
+                      >
+                        {t.tag}
+                      </Badge>
+                    ))}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-text-muted">
-                    <span>Party of {res.partySize}</span>
+                    <span>Party of {res.party_size}</span>
+                    <span>{formatPhone(res.guest?.phone || "")}</span>
+                    <span>{formatTime12h(res.time)}</span>
                   </div>
-                </div>
+                </Link>
                 <Button
                   variant="accent"
                   size="sm"
@@ -214,20 +239,21 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
             </CardTitle>
           </CardHeader>
           <div className="space-y-1">
-            {statusGroups.completed.map((res) => (
-              <div
+            {statusGroups.completed.map((res: any) => (
+              <Link
+                href={`/guests/${res.guest?.id}`}
                 key={res.id}
-                className="flex items-center justify-between p-2 rounded text-sm text-text-muted"
+                className="flex items-center justify-between p-2 rounded text-sm text-text-muted hover:bg-surface-alt/50 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <StatusDot status={res.status} />
                   <span>
-                    {res.guest.firstName} {res.guest.lastName}
+                    {res.guest?.first_name} {res.guest?.last_name}
                   </span>
                   <span>{formatTime12h(res.time)}</span>
                 </div>
                 <span className="capitalize">{res.status.replace("_", " ")}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </Card>

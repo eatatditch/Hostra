@@ -51,7 +51,7 @@ export const waitlistRouter = router({
     .query(async ({ input }) => {
       const entry = await getWaitlistByToken(input.token);
       if (!entry) return null;
-      const { checkToken, ...safe } = entry;
+      const { check_token, ...safe } = entry;
       return safe;
     }),
 });

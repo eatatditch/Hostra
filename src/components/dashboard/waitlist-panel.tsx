@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import {
   Card,
@@ -13,7 +14,7 @@ import {
   Input,
 } from "@/components/ui";
 import { formatPhone, minutesToHumanReadable } from "@/lib/utils";
-import { Plus, Bell, X } from "lucide-react";
+import { Plus, Bell, X, User } from "lucide-react";
 
 interface WaitlistPanelProps {
   locationId: string;
@@ -75,7 +76,7 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
     invalidate();
   }
 
-  const availableTables = tables?.filter((t) => t.status === "available") || [];
+  const availableTables = tables?.filter((t: any) => t.status === "available") || [];
 
   return (
     <>
@@ -105,12 +106,12 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
           </p>
         ) : (
           <div className="space-y-2">
-            {entries?.map((entry) => (
+            {entries?.map((entry: any) => (
               <div
                 key={entry.id}
                 className="flex items-start justify-between p-3 rounded-lg border border-border"
               >
-                <div className="space-y-1">
+                <Link href={`/guests/${entry.guest?.id}`} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-text-muted">
                       #{entry.position}
@@ -120,18 +121,27 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                       pulse={entry.status === "notified"}
                     />
                     <span className="font-medium text-sm">
-                      {entry.guest.firstName} {entry.guest.lastName}
+                      {entry.guest?.first_name} {entry.guest?.last_name}
                     </span>
+                    {entry.guest?.tags?.map((t: any) => (
+                      <Badge
+                        key={t.id}
+                        variant={t.tag === "VIP" ? "primary" : "default"}
+                      >
+                        {t.tag}
+                      </Badge>
+                    ))}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted">
-                    <span>Party of {entry.partySize}</span>
-                    {entry.estimatedWaitMinutes != null && (
+                    <span>Party of {entry.party_size}</span>
+                    {entry.estimated_wait_minutes != null && (
                       <span>
-                        ~{minutesToHumanReadable(entry.estimatedWaitMinutes)}
+                        ~{minutesToHumanReadable(entry.estimated_wait_minutes)}
                       </span>
                     )}
+                    <span>{formatPhone(entry.guest?.phone || "")}</span>
                   </div>
-                </div>
+                </Link>
                 <div className="flex items-center gap-1 shrink-0">
                   {entry.status === "waiting" && (
                     <Button
@@ -146,7 +156,7 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                   {(entry.status === "waiting" || entry.status === "notified") &&
                     availableTables.length > 0 && (
                       <select
-                        className="text-xs border border-border rounded px-1.5 py-1"
+                        className="text-xs border border-border rounded px-1.5 py-1 cursor-pointer"
                         onChange={(e) => {
                           if (e.target.value) handleSeat(entry.id, e.target.value);
                         }}
@@ -156,10 +166,10 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                           Seat
                         </option>
                         {availableTables
-                          .filter((t) => t.capacity >= entry.partySize)
-                          .map((t) => (
+                          .filter((t: any) => t.capacity >= entry.party_size)
+                          .map((t: any) => (
                             <option key={t.id} value={t.id}>
-                              {t.label}
+                              {t.label} ({t.capacity})
                             </option>
                           ))}
                       </select>

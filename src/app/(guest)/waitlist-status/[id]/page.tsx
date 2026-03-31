@@ -72,17 +72,17 @@ export default function WaitlistStatusPage() {
                   Position: <strong>#{entry.position}</strong>
                 </span>
               </div>
-              {entry.estimatedWaitMinutes != null && (
+              {entry.estimated_wait_minutes != null && (
                 <div className="flex items-center justify-center gap-2 text-sm">
                   <Clock className="h-4 w-4 text-text-muted" />
                   <span>
-                    ~{minutesToHumanReadable(entry.estimatedWaitMinutes)}
+                    ~{minutesToHumanReadable(entry.estimated_wait_minutes)}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-center gap-2 text-sm">
                 <Users className="h-4 w-4 text-text-muted" />
-                <span>Party of {entry.partySize}</span>
+                <span>Party of {entry.party_size}</span>
               </div>
             </div>
           )}
