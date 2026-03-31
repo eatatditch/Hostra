@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc/client";
 import { formatTime12h } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Calendar, Clock, Users, Check, MapPin, Phone, Globe, Navigation, Waves } from "lucide-react";
+import { HostOSLogo } from "@/components/ui";
 
 type Step = "location" | "details" | "time" | "confirm" | "done";
 
@@ -288,7 +289,10 @@ export default function ReservePage() {
             </div>
           )}
 
-          <p className="text-center mt-10 text-[10px] uppercase tracking-[0.2em] text-ditch-blue/20">Powered by HostOS</p>
+          <div className="flex items-center justify-center gap-2 mt-10 opacity-20">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-ditch-blue">Powered by</span>
+            <HostOSLogo height={14} />
+          </div>
         </div>
       </div>
     </div>

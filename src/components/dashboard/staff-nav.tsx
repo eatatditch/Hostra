@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { HostOSLogo } from "@/components/ui";
 import { useLocation } from "./location-provider";
 import {
   LayoutDashboard,
@@ -47,11 +48,9 @@ export function StaffNav() {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col border-r border-border bg-white z-30">
-        <div className="px-6 py-5 border-b border-border">
+        <div className="px-6 py-4 border-b border-border">
           <Link href="/dashboard">
-            <h1 className="text-2xl font-display font-bold text-ditch-charcoal">
-              HostOS
-            </h1>
+            <HostOSLogo height={28} />
           </Link>
         </div>
 

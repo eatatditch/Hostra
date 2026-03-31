@@ -7,3 +7,4 @@ export { Badge } from "./badge";
 export { StatusDot } from "./status-dot";
 export { Modal } from "./modal";
 export { TriggerBadge } from "./trigger-badge";
+export { HostOSLogo } from "./hostos-logo";

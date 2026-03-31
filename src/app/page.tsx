@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { HostOSLogo } from "@/components/ui";
 
 export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface">
-      <div className="text-center space-y-6 px-4">
-        <h1 className="text-5xl font-display font-bold text-ditch-charcoal">
-          HostOS
-        </h1>
+      <div className="flex flex-col items-center space-y-6 px-4">
+        <HostOSLogo height={48} />
         <p className="text-lg text-text-muted max-w-md mx-auto">
           Powered by GuestIQ
         </p>

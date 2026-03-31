@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/auth/supabase-browser";
-import { Button, Input, Card } from "@/components/ui";
+import { Button, Input, Card, HostOSLogo } from "@/components/ui";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -39,11 +39,9 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface px-4">
       <Card className="w-full max-w-sm">
-        <div className="text-center pb-6">
-          <h1 className="text-3xl font-display font-bold text-ditch-charcoal">
-            HostOS
-          </h1>
-          <p className="text-sm text-text-muted mt-1">Staff Login</p>
+        <div className="flex flex-col items-center pb-6">
+          <HostOSLogo height={36} />
+          <p className="text-sm text-text-muted mt-2">Staff Login</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
