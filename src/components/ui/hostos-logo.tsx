@@ -6,7 +6,7 @@ type LogoSize = "xs" | "sm" | "md" | "lg";
 
 const SIZES: Record<LogoSize, { height: number; maxWidth: number }> = {
   xs: { height: 80, maxWidth: 300 },   // footer "powered by"
-  sm: { height: 120, maxWidth: 250 },   // sidebar
+  sm: { height: 44, maxWidth: 200 },    // sidebar — width-driven, height capped
   md: { height: 120, maxWidth: 500 },  // login page
   lg: { height: 160, maxWidth: 600 },  // landing / hero
 };
@@ -26,7 +26,7 @@ export function HostOSLogo({ className, size = "sm" }: HostOSLogoProps) {
         src={brand.platform_logo_url}
         alt="HostOS"
         className={className}
-        style={{ height, maxWidth, objectFit: "contain" }}
+        style={{ width: maxWidth, maxHeight: height, objectFit: "contain" }}
       />
     );
   }
