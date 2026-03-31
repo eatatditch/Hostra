@@ -51,7 +51,7 @@ export function StaffNav() {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col border-r border-border bg-white z-30">
-        <div className="px-6 py-4 border-b border-border">
+        <div className="px-3 py-2 border-b border-border">
           <Link href="/dashboard">
             <HostOSLogo size="sm" />
           </Link>
