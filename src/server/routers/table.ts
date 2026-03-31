@@ -392,6 +392,23 @@ export const tableRouter = router({
       return null;
     }),
 
+  updateAppIcon: protectedProcedure
+    .input(z.object({ appIconUrl: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const { data: staff } = await supabase.from("staff").select("is_platform_admin").eq("id", ctx.session.id).single();
+      if (!staff?.is_platform_admin) throw new Error("Only platform admins can update the app icon");
+
+      const { data: existing } = await supabase.from("brand_settings").select("id").limit(1).single();
+      if (existing) {
+        const { data, error } = await supabase.from("brand_settings")
+          .update({ app_icon_url: input.appIconUrl || null, updated_at: new Date().toISOString() })
+          .eq("id", existing.id).select().single();
+        if (error) throw new Error(error.message);
+        return data;
+      }
+      return null;
+    }),
+
   updateBrandSettings: roleProcedure("admin")
     .input(z.object({
       brandName: z.string().min(1).max(255).optional(),

@@ -144,6 +144,9 @@ export default function PlatformPage() {
         )}
       </Card>
 
+      {/* App Icon */}
+      <AppIconUpload brand={brand} />
+
       {/* Platform Info */}
       <Card>
         <CardHeader>
@@ -165,5 +168,96 @@ export default function PlatformPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function AppIconUpload({ brand }: { brand: any }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const updateMutation = trpc.table.updateAppIcon.useMutation();
+  const utils = trpc.useUtils();
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", "brand-assets");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { setUploadError(data.error || "Upload failed"); return; }
+      await updateMutation.mutateAsync({ appIconUrl: data.url });
+      utils.table.getBrandSettings.invalidate();
+    } catch { setUploadError("Upload failed."); }
+    finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
+  }
+
+  async function handleRemove() {
+    await updateMutation.mutateAsync({ appIconUrl: "" });
+    utils.table.getBrandSettings.invalidate();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>App Icon</CardTitle>
+      </CardHeader>
+      <div className="space-y-4">
+        <p className="text-sm text-text-muted">
+          This icon appears when HostOS is installed as an app on iPad, iPhone, or Android.
+          Upload a <strong>square image</strong> (ideally 512x512 or larger). It will be used as the home screen icon.
+        </p>
+
+        {brand?.app_icon_url ? (
+          <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-surface-alt">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <img src={brand.app_icon_url} alt="App Icon" className="w-16 h-16 rounded-2xl object-cover shadow-sm" />
+                <img src={brand.app_icon_url} alt="App Icon" className="w-10 h-10 rounded-xl object-cover shadow-sm" />
+              </div>
+              <p className="text-xs text-text-muted">Home screen preview</p>
+            </div>
+            <div className="flex-1" />
+            <div className="flex flex-col gap-2">
+              <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} loading={uploading}>
+                Replace
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleRemove}>
+                <Trash2 className="h-3.5 w-3.5 text-status-error" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full p-8 rounded-xl border-2 border-dashed border-ditch-orange/30 hover:border-ditch-orange transition-colors cursor-pointer text-center bg-ditch-orange/5"
+          >
+            {uploading ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
+                <div className="h-4 w-4 border-2 border-ditch-orange border-t-transparent rounded-full animate-spin" />
+                Uploading...
+              </div>
+            ) : (
+              <div>
+                <div className="w-16 h-16 rounded-2xl bg-surface-alt border-2 border-dashed border-border mx-auto mb-3 flex items-center justify-center">
+                  <span className="text-2xl text-text-muted">+</span>
+                </div>
+                <p className="text-sm font-semibold text-ditch-orange">Upload App Icon</p>
+                <p className="text-xs text-text-muted mt-1">Square PNG, 512x512 recommended</p>
+              </div>
+            )}
+          </button>
+        )}
+
+        <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleUpload} className="hidden" />
+        {uploadError && <p className="text-sm text-status-error mt-1">{uploadError}</p>}
+      </div>
+    </Card>
   );
 }

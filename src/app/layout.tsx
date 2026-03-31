@@ -4,7 +4,7 @@ import "@/styles/globals.css";
 export const metadata: Metadata = {
   title: "HostOS — Powered by GuestIQ",
   description: "The hospitality operating system powered by GuestIQ.",
-  manifest: "/manifest.json",
+  manifest: "/api/manifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
