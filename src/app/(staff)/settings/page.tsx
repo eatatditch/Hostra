@@ -60,7 +60,6 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {isPlatformAdmin && <PlatformSettings />}
       <BrandManager />
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />

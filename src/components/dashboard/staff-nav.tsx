@@ -14,6 +14,7 @@ import {
   BarChart3,
   CalendarDays,
   LogOut,
+  Shield,
 } from "lucide-react";
 import { createSupabaseBrowser } from "@/lib/auth/supabase-browser";
 import { useRouter } from "next/navigation";
@@ -26,16 +27,18 @@ const allNavItems = [
   { href: "/guests", label: "Guests", icon: Users, roles: ["admin", "manager", "host"] },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["admin", "manager"] },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager"] },
+  { href: "/platform", label: "Platform", icon: Shield, roles: ["admin"], platformOnly: true },
 ];
 
 export function StaffNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { locationId, locationName, setLocation, locations, userRole } = useLocation();
+  const { locationId, locationName, setLocation, locations, userRole, isPlatformAdmin } = useLocation();
 
-  const navItems = allNavItems.filter((item) =>
-    !userRole || item.roles.includes(userRole)
-  );
+  const navItems = allNavItems.filter((item: any) => {
+    if (item.platformOnly && !isPlatformAdmin) return false;
+    return !userRole || item.roles.includes(userRole);
+  });
 
   async function handleLogout() {
     const supabase = createSupabaseBrowser();
