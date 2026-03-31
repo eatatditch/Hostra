@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { useLocation } from "@/components/dashboard/location-provider";
+import { FloorPlan } from "@/components/dashboard/floor-plan";
 import {
   Card,
   CardHeader,
@@ -322,6 +323,18 @@ function ShiftForm({
 // ── Table Manager ─────────────────────────────────────────
 
 function TableManager({ locationId }: { locationId: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-text-muted mb-2">Floor Plan & Tables</h3>
+      <p className="text-xs text-text-muted mb-3">
+        Click the unlock icon to drag tables around. Click + Table to add new ones.
+      </p>
+      <FloorPlan locationId={locationId} editable />
+    </div>
+  );
+}
+
+function _OldTableManager({ locationId }: { locationId: string }) {
   const [showAddTable, setShowAddTable] = useState(false);
   const [editingTable, setEditingTable] = useState<any>(null);
   const [tableForm, setTableForm] = useState({
