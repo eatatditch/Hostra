@@ -58,7 +58,7 @@ export default function BookingDetailPage() {
       <Card className="w-full max-w-sm">
         <div className="text-center pb-4">
           {brand?.logo_url ? (
-            <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-10 mx-auto" />
+            <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-12 max-w-[200px] object-contain mx-auto" />
           ) : (
             <h1 className="text-2xl font-display font-bold text-ditch-charcoal">
               {brand?.brand_name || "Ditch"}

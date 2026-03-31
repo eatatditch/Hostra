@@ -119,7 +119,7 @@ export default function ReservePage() {
           {/* Brand Header */}
           <div className="text-center mb-10">
             {brand?.logo_url ? (
-              <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-14 mx-auto mb-2" />
+              <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-12 max-w-[200px] object-contain mx-auto mb-2" />
             ) : (
               <h1 className="text-5xl sm:text-6xl font-display font-bold text-ditch-charcoal tracking-tight">
                 {brand?.brand_name || "Ditch"}
@@ -291,7 +291,7 @@ export default function ReservePage() {
 
           <div className="flex items-center justify-center gap-2 mt-10 opacity-20">
             <span className="text-[10px] uppercase tracking-[0.2em] text-ditch-blue">Powered by</span>
-            <HostOSLogo height={14} />
+            <HostOSLogo size="xs" />
           </div>
         </div>
       </div>

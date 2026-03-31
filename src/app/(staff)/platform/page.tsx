@@ -60,7 +60,7 @@ export default function PlatformPage() {
     <div className="p-4 lg:p-6 space-y-6 max-w-3xl">
       <div>
         <div className="flex items-center gap-3 mb-1">
-          <HostOSLogo height={28} />
+          <HostOSLogo size="sm" />
           <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">Platform Admin</span>
         </div>
         <p className="text-sm text-text-muted">
@@ -121,17 +121,17 @@ export default function PlatformPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-white rounded-lg border border-border p-3 text-center">
                   <p className="text-[10px] text-text-muted mb-2">Sidebar</p>
-                  <HostOSLogo height={22} />
+                  <HostOSLogo size="sm" />
                 </div>
                 <div className="bg-white rounded-lg border border-border p-3 text-center">
                   <p className="text-[10px] text-text-muted mb-2">Login</p>
-                  <HostOSLogo height={30} />
+                  <HostOSLogo size="md" />
                 </div>
                 <div className="bg-surface-alt rounded-lg border border-border p-3 text-center">
                   <p className="text-[10px] text-text-muted mb-2">Footer</p>
                   <div className="flex items-center justify-center gap-1 opacity-30">
                     <span className="text-[8px]">Powered by</span>
-                    <HostOSLogo height={10} />
+                    <HostOSLogo size="xs" />
                   </div>
                 </div>
               </div>

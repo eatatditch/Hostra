@@ -244,7 +244,7 @@ function BrandManager() {
             <label className="block text-sm font-medium text-text mb-1.5">Logo</label>
             {logoUrl ? (
               <div className="flex items-center gap-4 p-3 rounded-lg border border-border bg-surface-alt">
-                <img src={logoUrl} alt="Logo" className="h-14 object-contain" />
+                <img src={logoUrl} alt="Logo" className="h-12 max-w-[200px] object-contain" />
                 <div className="flex-1" />
                 <div className="flex items-center gap-2">
                   <Button

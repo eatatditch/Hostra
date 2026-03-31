@@ -5,7 +5,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface">
       <div className="flex flex-col items-center space-y-6 px-4">
-        <HostOSLogo height={48} />
+        <HostOSLogo size="lg" />
         <p className="text-lg text-text-muted max-w-md mx-auto">
           Powered by GuestIQ
         </p>

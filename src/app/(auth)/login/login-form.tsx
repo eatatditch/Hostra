@@ -40,7 +40,7 @@ export default function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-surface px-4">
       <Card className="w-full max-w-sm">
         <div className="flex flex-col items-center pb-6">
-          <HostOSLogo height={36} />
+          <HostOSLogo size="md" />
           <p className="text-sm text-text-muted mt-2">Staff Login</p>
         </div>
 
