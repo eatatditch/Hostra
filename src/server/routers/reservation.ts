@@ -51,13 +51,13 @@ export const reservationRouter = router({
     }),
 
   complete: protectedProcedure
-    .input(z.object({ reservationId: z.string().uuid() }))
+    .input(z.object({ reservationId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       return completeReservation(input.reservationId);
     }),
 
   markNoShow: protectedProcedure
-    .input(z.object({ reservationId: z.string().uuid() }))
+    .input(z.object({ reservationId: z.string().min(1) }))
     .mutation(async ({ input }) => {
       return markNoShow(input.reservationId);
     }),
@@ -65,7 +65,7 @@ export const reservationRouter = router({
   getByDate: protectedProcedure
     .input(
       z.object({
-        locationId: z.string().uuid(),
+        locationId: z.string().min(1),
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       })
     )

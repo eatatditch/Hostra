@@ -6,7 +6,7 @@ export const analyticsRouter = router({
   dailySummary: protectedProcedure
     .input(
       z.object({
-        locationId: z.string().uuid(),
+        locationId: z.string().min(1),
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       })
     )
@@ -17,7 +17,7 @@ export const analyticsRouter = router({
   weeklyTrend: protectedProcedure
     .input(
       z.object({
-        locationId: z.string().uuid(),
+        locationId: z.string().min(1),
         endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       })
     )

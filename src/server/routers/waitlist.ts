@@ -41,7 +41,7 @@ export const waitlistRouter = router({
     }),
 
   getActive: protectedProcedure
-    .input(z.object({ locationId: z.string().uuid() }))
+    .input(z.object({ locationId: z.string().min(1) }))
     .query(async ({ input }) => {
       return getActiveWaitlist(input.locationId);
     }),

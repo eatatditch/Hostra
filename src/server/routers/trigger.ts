@@ -7,9 +7,9 @@ export const triggerRouter = router({
   evaluate: protectedProcedure
     .input(
       z.object({
-        guestId: z.string().uuid(),
-        locationId: z.string().uuid(),
-        reservationId: z.string().uuid().optional(),
+        guestId: z.string().min(1),
+        locationId: z.string().min(1),
+        reservationId: z.string().min(1).optional(),
         partySize: z.number().int(),
         specialRequests: z.string().nullable().optional(),
         date: z.string(),
@@ -22,7 +22,7 @@ export const triggerRouter = router({
   logAction: protectedProcedure
     .input(
       z.object({
-        triggerEventId: z.string().uuid(),
+        triggerEventId: z.string().min(1),
         note: z.string().max(500).optional(),
       })
     )
@@ -45,10 +45,10 @@ export const triggerRouter = router({
   saveTriggerEvents: protectedProcedure
     .input(
       z.object({
-        locationId: z.string().uuid(),
-        guestId: z.string().uuid(),
-        reservationId: z.string().uuid().optional(),
-        waitlistEntryId: z.string().uuid().optional(),
+        locationId: z.string().min(1),
+        guestId: z.string().min(1),
+        reservationId: z.string().min(1).optional(),
+        waitlistEntryId: z.string().min(1).optional(),
         triggers: z.array(
           z.object({
             type: z.string(),
@@ -82,7 +82,7 @@ export const triggerRouter = router({
     }),
 
   getConfig: roleProcedure("admin", "manager")
-    .input(z.object({ locationId: z.string().uuid() }))
+    .input(z.object({ locationId: z.string().min(1) }))
     .query(async ({ input }) => {
       const { data, error } = await supabase
         .from("trigger_configs")
@@ -96,7 +96,7 @@ export const triggerRouter = router({
   updateConfig: roleProcedure("admin", "manager")
     .input(
       z.object({
-        locationId: z.string().uuid(),
+        locationId: z.string().min(1),
         triggerType: z.string(),
         enabled: z.boolean(),
         threshold: z.record(z.string(), z.unknown()).optional(),

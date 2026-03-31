@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createReservationSchema = z.object({
-  locationId: z.string().uuid(),
+  locationId: z.string().min(1),
   firstName: z.string().min(1).max(100),
   lastName: z.string().max(100).optional(),
   phone: z.string().min(10).max(20),
@@ -14,26 +14,26 @@ export const createReservationSchema = z.object({
 });
 
 export const updateReservationSchema = z.object({
-  reservationId: z.string().uuid(),
+  reservationId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   partySize: z.number().int().min(1).max(20).optional(),
   specialRequests: z.string().max(500).optional(),
-  tableId: z.string().uuid().nullable().optional(),
+  tableId: z.string().min(1).nullable().optional(),
 });
 
 export const cancelReservationSchema = z.object({
-  reservationId: z.string().uuid(),
+  reservationId: z.string().min(1),
   token: z.string().optional(),
 });
 
 export const seatReservationSchema = z.object({
-  reservationId: z.string().uuid(),
-  tableId: z.string().uuid(),
+  reservationId: z.string().min(1),
+  tableId: z.string().min(1),
 });
 
 export const availabilityQuerySchema = z.object({
-  locationId: z.string().uuid(),
+  locationId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   partySize: z.number().int().min(1).max(20),
 });

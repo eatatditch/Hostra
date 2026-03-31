@@ -28,8 +28,8 @@ export const guestRouter = router({
   getProfile: protectedProcedure
     .input(
       z.object({
-        guestId: z.string().uuid(),
-        locationId: z.string().uuid(),
+        guestId: z.string().min(1),
+        locationId: z.string().min(1),
       })
     )
     .query(async ({ input }) => {

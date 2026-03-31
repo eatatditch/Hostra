@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 export const searchGuestsSchema = z.object({
-  locationId: z.string().uuid(),
+  locationId: z.string().min(1),
   query: z.string().min(1).max(100),
 });
 
 export const updateGuestSchema = z.object({
-  guestId: z.string().uuid(),
+  guestId: z.string().min(1),
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().max(100).optional(),
   email: z.string().email().optional().or(z.literal("")),
@@ -17,22 +17,22 @@ export const updateGuestSchema = z.object({
 });
 
 export const addGuestNoteSchema = z.object({
-  guestId: z.string().uuid(),
+  guestId: z.string().min(1),
   content: z.string().min(1).max(2000),
   flagged: z.boolean().default(false),
 });
 
 export const addGuestTagSchema = z.object({
-  guestId: z.string().uuid(),
+  guestId: z.string().min(1),
   tag: z.string().min(1).max(50),
 });
 
 export const removeGuestTagSchema = z.object({
-  guestId: z.string().uuid(),
+  guestId: z.string().min(1),
   tag: z.string().min(1).max(50),
 });
 
 export const mergeGuestsSchema = z.object({
-  primaryGuestId: z.string().uuid(),
-  duplicateGuestId: z.string().uuid(),
+  primaryGuestId: z.string().min(1),
+  duplicateGuestId: z.string().min(1),
 });

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/db";
-import { parse, format, addMinutes, isBefore, isAfter } from "date-fns";
+import { parse, format, addMinutes, isAfter } from "date-fns";
 import type { TimeSlot } from "@/types";
 
 interface AvailabilityParams {
@@ -46,29 +46,16 @@ export async function getAvailableSlots({
 
   // Generate time slots across all shifts
   const slots: TimeSlot[] = [];
-  const now = new Date();
 
   for (const shift of shifts) {
     const slotDuration = shift.slot_duration_min;
     const shiftStart = parse(shift.start_time, "HH:mm:ss", dateObj);
     const shiftEnd = parse(shift.end_time, "HH:mm:ss", dateObj);
-    // Allow booking up to 1 slot before end of shift
     const lastSlotStart = addMinutes(shiftEnd, -slotDuration);
 
     let current = shiftStart;
     while (!isAfter(current, lastSlotStart)) {
       const timeStr = format(current, "HH:mm");
-
-      // Don't show past time slots for today
-      const slotDateTime = parse(
-        `${date} ${timeStr}`,
-        "yyyy-MM-dd HH:mm",
-        new Date()
-      );
-      if (!isBefore(now, slotDateTime) && format(now, "yyyy-MM-dd") === date) {
-        current = addMinutes(current, slotDuration);
-        continue;
-      }
 
       const bookedCovers = bookedCoversMap.get(timeStr) || 0;
       const remainingCovers = shift.max_covers - bookedCovers;

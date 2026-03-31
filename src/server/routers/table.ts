@@ -4,7 +4,7 @@ import { supabase } from "@/lib/db";
 
 export const tableRouter = router({
   getByLocation: protectedProcedure
-    .input(z.object({ locationId: z.string().uuid() }))
+    .input(z.object({ locationId: z.string().min(1) }))
     .query(async ({ input }) => {
       const { data, error } = await supabase
         .from("tables")
@@ -20,7 +20,7 @@ export const tableRouter = router({
   updateStatus: protectedProcedure
     .input(
       z.object({
-        tableId: z.string().uuid(),
+        tableId: z.string().min(1),
         status: z.enum(["available", "reserved", "occupied", "turning"]),
       })
     )
@@ -39,8 +39,8 @@ export const tableRouter = router({
   create: roleProcedure("admin", "manager")
     .input(
       z.object({
-        locationId: z.string().uuid(),
-        floorPlanId: z.string().uuid(),
+        locationId: z.string().min(1),
+        floorPlanId: z.string().min(1),
         label: z.string().min(1).max(20),
         capacity: z.number().int().min(1).max(50),
         minCapacity: z.number().int().min(1).default(1),
@@ -72,7 +72,7 @@ export const tableRouter = router({
   update: roleProcedure("admin", "manager")
     .input(
       z.object({
-        tableId: z.string().uuid(),
+        tableId: z.string().min(1),
         label: z.string().min(1).max(20).optional(),
         capacity: z.number().int().min(1).max(50).optional(),
         minCapacity: z.number().int().min(1).optional(),
@@ -105,7 +105,7 @@ export const tableRouter = router({
     }),
 
   getFloorPlans: protectedProcedure
-    .input(z.object({ locationId: z.string().uuid() }))
+    .input(z.object({ locationId: z.string().min(1) }))
     .query(async ({ input }) => {
       const { data, error } = await supabase
         .from("floor_plans")
@@ -125,7 +125,7 @@ export const tableRouter = router({
   createFloorPlan: roleProcedure("admin", "manager")
     .input(
       z.object({
-        locationId: z.string().uuid(),
+        locationId: z.string().min(1),
         name: z.string().min(1).max(255),
       })
     )
@@ -144,7 +144,7 @@ export const tableRouter = router({
     }),
 
   getLocation: protectedProcedure
-    .input(z.object({ locationId: z.string().uuid() }))
+    .input(z.object({ locationId: z.string().min(1) }))
     .query(async ({ input }) => {
       const { data, error } = await supabase
         .from("locations")

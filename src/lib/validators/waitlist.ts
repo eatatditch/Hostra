@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const joinWaitlistSchema = z.object({
-  locationId: z.string().uuid(),
+  locationId: z.string().min(1),
   firstName: z.string().min(1).max(100),
   lastName: z.string().max(100).optional(),
   phone: z.string().min(10).max(20),
@@ -10,16 +10,16 @@ export const joinWaitlistSchema = z.object({
 });
 
 export const notifyWaitlistSchema = z.object({
-  entryId: z.string().uuid(),
+  entryId: z.string().min(1),
 });
 
 export const seatWaitlistSchema = z.object({
-  entryId: z.string().uuid(),
-  tableId: z.string().uuid(),
+  entryId: z.string().min(1),
+  tableId: z.string().min(1),
 });
 
 export const removeWaitlistSchema = z.object({
-  entryId: z.string().uuid(),
+  entryId: z.string().min(1),
 });
 
 export type JoinWaitlistInput = z.infer<typeof joinWaitlistSchema>;
