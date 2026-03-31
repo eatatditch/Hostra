@@ -5,10 +5,10 @@ import { trpc } from "@/lib/trpc/client";
 type LogoSize = "xs" | "sm" | "md" | "lg";
 
 const SIZES: Record<LogoSize, { height: number; maxWidth: number }> = {
-  xs: { height: 16, maxWidth: 80 },   // footer "powered by"
-  sm: { height: 28, maxWidth: 140 },   // sidebar
-  md: { height: 36, maxWidth: 180 },   // login page
-  lg: { height: 44, maxWidth: 220 },   // landing / hero
+  xs: { height: 20, maxWidth: 100 },   // footer "powered by"
+  sm: { height: 38, maxWidth: 180 },   // sidebar
+  md: { height: 48, maxWidth: 240 },   // login page
+  lg: { height: 60, maxWidth: 300 },   // landing / hero
 };
 
 interface HostOSLogoProps {
