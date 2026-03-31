@@ -5,10 +5,12 @@ import { trpc } from "@/lib/trpc/client";
 import { Card, Button, Badge, StatusDot } from "@/components/ui";
 import { formatTime12h } from "@/lib/utils";
 import { format } from "date-fns";
-import { Calendar, Clock, Users, MapPin } from "lucide-react";
+import { Calendar, Clock, Users, MapPin, Phone } from "lucide-react";
 
 export default function BookingDetailPage() {
   const { id: token } = useParams<{ id: string }>();
+
+  const { data: brand } = trpc.table.getBrandSettings.useQuery();
 
   const { data: reservation, isLoading } =
     trpc.reservation.getByToken.useQuery({ token });
@@ -55,9 +57,13 @@ export default function BookingDetailPage() {
     <div className="min-h-screen flex items-start justify-center pt-12 px-4">
       <Card className="w-full max-w-sm">
         <div className="text-center pb-4">
-          <h1 className="text-2xl font-display font-bold text-ditch-charcoal">
-            Ditch
-          </h1>
+          {brand?.logo_url ? (
+            <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-10 mx-auto" />
+          ) : (
+            <h1 className="text-2xl font-display font-bold text-ditch-charcoal">
+              {brand?.brand_name || "Ditch"}
+            </h1>
+          )}
           <p className="text-sm text-text-muted mt-1">Your Reservation</p>
         </div>
 
@@ -97,6 +103,26 @@ export default function BookingDetailPage() {
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-text-muted" />
                 <span>{reservation.location.name}</span>
+              </div>
+            )}
+            {reservation.location?.address && (
+              <div className="flex items-center gap-2 text-sm">
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(reservation.location.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Get Directions
+                </a>
+              </div>
+            )}
+            {reservation.location?.phone && (
+              <div className="flex items-center gap-2 text-sm">
+                <Phone className="h-4 w-4 text-text-muted" />
+                <a href={`tel:${reservation.location.phone}`} className="hover:underline">
+                  {reservation.location.phone}
+                </a>
               </div>
             )}
           </div>

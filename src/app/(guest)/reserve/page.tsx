@@ -23,10 +23,14 @@ export default function ReservePage() {
   const [specialRequests, setSpecialRequests] = useState("");
   const [confirmationToken, setConfirmationToken] = useState("");
 
+  const { data: brand } = trpc.table.getBrandSettings.useQuery();
+
   const { data: publicLocations, isLoading: locationsLoading } =
     trpc.table.getPublicLocations.useQuery(undefined, {
       enabled: step === "location",
     });
+
+  const selectedLocation = publicLocations?.find(l => l.id === locationId);
 
   const { data: slots, isLoading: slotsLoading } =
     trpc.reservation.getAvailability.useQuery(
@@ -75,9 +79,13 @@ export default function ReservePage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-display font-bold text-ditch-charcoal">
-            Ditch
-          </h1>
+          {brand?.logo_url ? (
+            <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-10 mx-auto" />
+          ) : (
+            <h1 className="text-3xl font-display font-bold text-ditch-charcoal">
+              {brand?.brand_name || "Ditch"}
+            </h1>
+          )}
           <p className="text-sm text-text-muted mt-1">Make a Reservation</p>
         </div>
 
@@ -147,6 +155,23 @@ export default function ReservePage() {
                 <MapPin className="h-4 w-4 text-text-muted shrink-0" />
                 <span className="font-medium text-text">{locationName}</span>
               </div>
+
+              {selectedLocation && (
+                <div className="bg-surface-alt rounded-lg p-3 space-y-1 text-sm text-text-muted">
+                  {selectedLocation.address && <p>{selectedLocation.address}</p>}
+                  {selectedLocation.phone && <p>{selectedLocation.phone}</p>}
+                  {selectedLocation.address && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedLocation.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Get Directions →
+                    </a>
+                  )}
+                </div>
+              )}
 
               <Input
                 label="Date"
@@ -279,6 +304,23 @@ export default function ReservePage() {
                 </span>
               </div>
 
+              {selectedLocation && (
+                <div className="bg-surface-alt rounded-lg p-3 space-y-1 text-sm text-text-muted">
+                  {selectedLocation.address && <p>{selectedLocation.address}</p>}
+                  {selectedLocation.phone && <p>{selectedLocation.phone}</p>}
+                  {selectedLocation.address && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedLocation.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Get Directions →
+                    </a>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label="First Name"
@@ -357,6 +399,22 @@ export default function ReservePage() {
                   Party of {partySize}
                 </p>
               </div>
+              {selectedLocation && (
+                <div className="bg-surface-alt rounded-lg p-3 space-y-1 text-sm text-text-muted">
+                  {selectedLocation.address && <p>{selectedLocation.address}</p>}
+                  {selectedLocation.phone && <p>{selectedLocation.phone}</p>}
+                  {selectedLocation.address && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedLocation.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Get Directions →
+                    </a>
+                  )}
+                </div>
+              )}
               <p className="text-sm text-text-muted">
                 A confirmation has been sent to your phone.
               </p>

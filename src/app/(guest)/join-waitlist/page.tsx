@@ -19,10 +19,14 @@ export default function WaitlistJoinPage() {
   const [checkToken, setCheckToken] = useState("");
   const [estimatedWait, setEstimatedWait] = useState(0);
 
+  const { data: brand } = trpc.table.getBrandSettings.useQuery();
+
   const { data: publicLocations, isLoading: locationsLoading } =
     trpc.table.getPublicLocations.useQuery(undefined, {
       enabled: step === "location",
     });
+
+  const selectedLocation = publicLocations?.find(l => l.id === locationId);
 
   const joinMutation = trpc.waitlist.join.useMutation();
 
@@ -50,9 +54,13 @@ export default function WaitlistJoinPage() {
     <div className="min-h-screen flex items-start justify-center pt-12 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-display font-bold text-ditch-charcoal">
-            Ditch
-          </h1>
+          {brand?.logo_url ? (
+            <img src={brand.logo_url} alt={brand.brand_name || "Ditch"} className="h-10 mx-auto" />
+          ) : (
+            <h1 className="text-3xl font-display font-bold text-ditch-charcoal">
+              {brand?.brand_name || "Ditch"}
+            </h1>
+          )}
           <p className="text-sm text-text-muted mt-1">Join the Waitlist</p>
         </div>
 
@@ -112,6 +120,23 @@ export default function WaitlistJoinPage() {
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
                 <span>{locationName}</span>
               </div>
+
+              {selectedLocation && (
+                <div className="bg-surface-alt rounded-lg p-3 space-y-1 text-sm text-text-muted">
+                  {selectedLocation.address && <p>{selectedLocation.address}</p>}
+                  {selectedLocation.phone && <p>{selectedLocation.phone}</p>}
+                  {selectedLocation.address && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedLocation.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Get Directions →
+                    </a>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <Input
@@ -189,6 +214,22 @@ export default function WaitlistJoinPage() {
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
                 <span>{locationName}</span>
               </div>
+              {selectedLocation && (
+                <div className="bg-surface-alt rounded-lg p-3 space-y-1 text-sm text-text-muted text-left">
+                  {selectedLocation.address && <p>{selectedLocation.address}</p>}
+                  {selectedLocation.phone && <p>{selectedLocation.phone}</p>}
+                  {selectedLocation.address && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedLocation.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs inline-flex items-center gap-1"
+                    >
+                      Get Directions →
+                    </a>
+                  )}
+                </div>
+              )}
               {estimatedWait > 0 && (
                 <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
                   <Clock className="h-4 w-4" />

@@ -17,11 +17,21 @@ export const staffRouter = router({
     .query(async () => {
       const { data, error } = await supabase
         .from("staff")
-        .select("*, location:locations(id, name)")
+        .select("*, location:locations(id, name), accessible_locations:staff_locations(location_id, loc:locations(id, name))")
         .order("name", { ascending: true });
 
       if (error) throw new Error(error.message);
       return data;
+    }),
+
+  getAccessibleLocations: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { data } = await supabase
+        .from("staff_locations")
+        .select("location_id, location:locations(id, name, slug, address, phone)")
+        .eq("staff_id", ctx.session.id);
+
+      return data || [];
     }),
 
   create: roleProcedure("admin")
@@ -31,7 +41,7 @@ export const staffRouter = router({
         password: z.string().min(8),
         name: z.string().min(1).max(255),
         role: z.enum(["admin", "manager", "host"]),
-        locationId: z.string().min(1),
+        locationIds: z.array(z.string().min(1)).min(1),
       })
     )
     .mutation(async ({ input }) => {
@@ -77,7 +87,7 @@ export const staffRouter = router({
         authUserId = authData.user.id;
       }
 
-      // Create staff record
+      // Create staff record with first locationId as the default location
       const { data: staffRecord, error: staffError } = await supabase
         .from("staff")
         .insert({
@@ -85,7 +95,7 @@ export const staffRouter = router({
           email: input.email,
           name: input.name,
           role: input.role,
-          location_id: input.locationId,
+          location_id: input.locationIds[0],
         })
         .select()
         .single();
@@ -94,7 +104,34 @@ export const staffRouter = router({
         throw new Error(`Staff error: ${staffError.message}`);
       }
 
+      // Insert staff_locations records for each locationId
+      for (const locId of input.locationIds) {
+        await supabase.from("staff_locations").insert({ staff_id: staffRecord.id, location_id: locId });
+      }
+
       return staffRecord;
+    }),
+
+  updateLocationAccess: roleProcedure("admin")
+    .input(
+      z.object({
+        staffId: z.string().min(1),
+        locationIds: z.array(z.string().min(1)),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Delete all existing staff_locations for this staff member
+      await supabase
+        .from("staff_locations")
+        .delete()
+        .eq("staff_id", input.staffId);
+
+      // Insert new staff_locations records
+      for (const locId of input.locationIds) {
+        await supabase.from("staff_locations").insert({ staff_id: input.staffId, location_id: locId });
+      }
+
+      return { success: true };
     }),
 
   update: roleProcedure("admin")

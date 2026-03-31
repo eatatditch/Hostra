@@ -277,7 +277,7 @@ export const tableRouter = router({
   getPublicLocations: publicProcedure.query(async () => {
     const { data, error } = await supabase
       .from("locations")
-      .select("id, name, slug, address")
+      .select("id, name, slug, address, phone")
       .eq("active", true)
       .order("name", { ascending: true });
 
@@ -362,6 +362,36 @@ export const tableRouter = router({
 
       if (error) throw new Error(error.message);
       return data;
+    }),
+
+  getBrandSettings: publicProcedure.query(async () => {
+    const { data, error } = await supabase
+      .from("brand_settings")
+      .select("*")
+      .limit(1)
+      .single();
+    if (error) return { brand_name: "Ditch", logo_url: null };
+    return data;
+  }),
+
+  updateBrandSettings: roleProcedure("admin")
+    .input(z.object({
+      brandName: z.string().min(1).max(255).optional(),
+      logoUrl: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const mapped: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (input.brandName !== undefined) mapped.brand_name = input.brandName;
+      if (input.logoUrl !== undefined) mapped.logo_url = input.logoUrl || null;
+
+      // Update first record
+      const { data: existing } = await supabase.from("brand_settings").select("id").limit(1).single();
+      if (existing) {
+        const { data, error } = await supabase.from("brand_settings").update(mapped).eq("id", existing.id).select().single();
+        if (error) throw new Error(error.message);
+        return data;
+      }
+      return null;
     }),
 
   deleteShift: roleProcedure("admin", "manager")

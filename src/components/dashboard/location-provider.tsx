@@ -33,16 +33,27 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [locationId, setLocationId] = useState("");
   const [locationName, setLocationName] = useState("");
 
-  const { data: locations, isLoading } = trpc.table.getLocations.useQuery();
+  // Use staff-accessible locations instead of all locations
+  const { data: accessibleLocations, isLoading: accessLoading } =
+    trpc.staff.getAccessibleLocations.useQuery();
+
+  // Fallback to all locations if staff_locations is empty (backward compat)
+  const { data: allLocations, isLoading: allLoading } =
+    trpc.table.getLocations.useQuery();
+
+  const isLoading = accessLoading || allLoading;
+
+  // Use accessible locations if available, otherwise fall back to all
+  const locations = (accessibleLocations && accessibleLocations.length > 0)
+    ? accessibleLocations.map((al: any) => al.location).filter(Boolean)
+    : allLocations || [];
 
   useEffect(() => {
-    if (locations && locations.length > 0 && !locationId) {
+    if (locations.length > 0 && !locationId) {
       const saved = typeof window !== "undefined"
         ? localStorage.getItem("hostra-location-id")
         : null;
-      const match = saved
-        ? locations.find((l) => l.id === saved)
-        : null;
+      const match = saved ? locations.find((l: any) => l.id === saved) : null;
       const loc = match || locations[0];
       setLocationId(loc.id);
       setLocationName(loc.name);
@@ -59,13 +70,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   return (
     <LocationContext.Provider
-      value={{
-        locationId,
-        locationName,
-        setLocation,
-        locations: locations || [],
-        isLoading,
-      }}
+      value={{ locationId, locationName, setLocation, locations, isLoading }}
     >
       {children}
     </LocationContext.Provider>

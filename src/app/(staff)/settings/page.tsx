@@ -50,11 +50,72 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      <BrandManager />
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />
       <StaffManager />
       <LocationManager />
     </div>
+  );
+}
+
+// ── Brand Manager ─────────────────────────────────────────
+
+function BrandManager() {
+  const { data: brand, isLoading } = trpc.table.getBrandSettings.useQuery();
+  const updateMutation = trpc.table.updateBrandSettings.useMutation();
+  const utils = trpc.useUtils();
+  const [brandName, setBrandName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [initialized, setInitialized] = useState(false);
+
+  if (brand && !initialized) {
+    setBrandName(brand.brand_name || "");
+    setLogoUrl(brand.logo_url || "");
+    setInitialized(true);
+  }
+
+  async function handleSave() {
+    await updateMutation.mutateAsync({ brandName: brandName || undefined, logoUrl: logoUrl || undefined });
+    utils.table.getBrandSettings.invalidate();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Brand</CardTitle>
+      </CardHeader>
+      {isLoading ? (
+        <div className="h-16 bg-surface-alt rounded-lg animate-pulse" />
+      ) : (
+        <div className="space-y-4">
+          <Input
+            label="Brand Name"
+            value={brandName}
+            onChange={(e) => setBrandName(e.target.value)}
+            placeholder="e.g. Ditch"
+          />
+          <Input
+            label="Logo URL"
+            value={logoUrl}
+            onChange={(e) => setLogoUrl(e.target.value)}
+            placeholder="https://example.com/logo.png"
+          />
+          {logoUrl && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted">Preview:</span>
+              <img src={logoUrl} alt="Logo" className="h-12 object-contain" />
+            </div>
+          )}
+          <p className="text-xs text-text-muted">
+            The brand name and logo appear on guest-facing booking and waitlist pages.
+          </p>
+          <Button size="sm" onClick={handleSave} loading={updateMutation.isPending}>
+            Save Brand Settings
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -664,13 +725,14 @@ function StaffManager() {
     password: "",
     name: "",
     role: "host" as string,
-    locationId: "",
+    locationIds: [] as string[],
   });
 
   const { data: staffList, isLoading } = trpc.staff.list.useQuery();
   const { data: locations } = trpc.table.getLocations.useQuery();
   const createMutation = trpc.staff.create.useMutation();
   const updateMutation = trpc.staff.update.useMutation();
+  const updateLocAccessMutation = trpc.staff.updateLocationAccess.useMutation();
   const resetPwMutation = trpc.staff.resetPassword.useMutation();
   const utils = trpc.useUtils();
 
@@ -679,14 +741,14 @@ function StaffManager() {
   }
 
   function resetForm() {
-    setForm({ email: "", password: "", name: "", role: "host", locationId: locations?.[0]?.id || "" });
+    setForm({ email: "", password: "", name: "", role: "host", locationIds: locations?.map((l: any) => l.id) || [] });
     setError("");
   }
 
   async function handleCreate() {
     setError("");
-    const locId = form.locationId || locations?.[0]?.id || "";
-    if (!locId) {
+    const locIds = form.locationIds.length > 0 ? form.locationIds : locations?.map((l: any) => l.id) || [];
+    if (locIds.length === 0) {
       setError("No location available. Create a location first.");
       return;
     }
@@ -696,7 +758,7 @@ function StaffManager() {
         password: form.password,
         name: form.name,
         role: form.role as "admin" | "manager" | "host",
-        locationId: locId,
+        locationIds: locIds,
       });
       setShowAdd(false);
       resetForm();
@@ -712,7 +774,12 @@ function StaffManager() {
       staffId: editingStaff.id,
       name: form.name,
       role: form.role as "admin" | "manager" | "host",
-      locationId: form.locationId,
+      locationId: form.locationIds[0] || editingStaff.location_id,
+    });
+    // Update location access
+    await updateLocAccessMutation.mutateAsync({
+      staffId: editingStaff.id,
+      locationIds: form.locationIds,
     });
     setEditingStaff(null);
     invalidate();
@@ -731,14 +798,24 @@ function StaffManager() {
   }
 
   function openEdit(s: any) {
+    const accessLocs = (s.accessible_locations || []).map((al: any) => al.location_id);
     setForm({
       email: s.email,
       password: "",
       name: s.name,
       role: s.role,
-      locationId: s.location_id,
+      locationIds: accessLocs.length > 0 ? accessLocs : [s.location_id],
     });
     setEditingStaff(s);
+  }
+
+  function toggleLocation(locId: string) {
+    setForm((prev) => ({
+      ...prev,
+      locationIds: prev.locationIds.includes(locId)
+        ? prev.locationIds.filter((id) => id !== locId)
+        : [...prev.locationIds, locId],
+    }));
   }
 
   return (
@@ -771,7 +848,7 @@ function StaffManager() {
                     {!s.active && <Badge variant="default">Disabled</Badge>}
                   </div>
                   <p className="text-xs text-text-muted">
-                    {s.email} · {s.location?.name || "No location"}
+                    {s.email} · {(s.accessible_locations || []).map((al: any) => al.loc?.name).filter(Boolean).join(", ") || s.location?.name || "No location"}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -827,12 +904,22 @@ function StaffManager() {
             options={ROLE_OPTIONS}
           />
           {locations && locations.length > 0 && (
-            <Select
-              label="Default Location"
-              value={form.locationId || locations[0]?.id}
-              onChange={(e) => setForm({ ...form, locationId: e.target.value })}
-              options={locations.map((l: any) => ({ value: l.id, label: l.name }))}
-            />
+            <div>
+              <label className="block text-sm font-medium text-text mb-1.5">Location Access</label>
+              <div className="space-y-2">
+                {locations.map((l: any) => (
+                  <label key={l.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.locationIds.includes(l.id)}
+                      onChange={() => toggleLocation(l.id)}
+                      className="rounded"
+                    />
+                    {l.name}
+                  </label>
+                ))}
+              </div>
+            </div>
           )}
           <div className="bg-surface-alt rounded-lg p-3 text-xs text-text-muted space-y-1">
             <p><strong>Admin</strong> — Full access: locations, tables, shifts, staff, CRM, everything</p>
@@ -868,12 +955,22 @@ function StaffManager() {
             options={ROLE_OPTIONS}
           />
           {locations && locations.length > 0 && (
-            <Select
-              label="Default Location"
-              value={form.locationId}
-              onChange={(e) => setForm({ ...form, locationId: e.target.value })}
-              options={locations.map((l: any) => ({ value: l.id, label: l.name }))}
-            />
+            <div>
+              <label className="block text-sm font-medium text-text mb-1.5">Location Access</label>
+              <div className="space-y-2">
+                {locations.map((l: any) => (
+                  <label key={l.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.locationIds.includes(l.id)}
+                      onChange={() => toggleLocation(l.id)}
+                      className="rounded"
+                    />
+                    {l.name}
+                  </label>
+                ))}
+              </div>
+            </div>
           )}
           <Button type="submit" className="w-full" loading={updateMutation.isPending}>
             Save Changes
