@@ -162,6 +162,82 @@ export const tableRouter = router({
     return data;
   }),
 
+  createLocation: roleProcedure("admin")
+    .input(
+      z.object({
+        name: z.string().min(1).max(255),
+        slug: z.string().min(1).max(100),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        timezone: z.string().default("America/New_York"),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Create location
+      const { data: location, error } = await supabase
+        .from("locations")
+        .insert({
+          name: input.name,
+          slug: input.slug,
+          address: input.address || null,
+          phone: input.phone || null,
+          timezone: input.timezone,
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      // Create a default floor plan
+      await supabase.from("floor_plans").insert({
+        location_id: location.id,
+        name: "Main Floor",
+      });
+
+      return location;
+    }),
+
+  updateLocation: roleProcedure("admin")
+    .input(
+      z.object({
+        locationId: z.string().min(1),
+        name: z.string().min(1).max(255).optional(),
+        address: z.string().optional(),
+        phone: z.string().optional(),
+        timezone: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { locationId, ...updateData } = input;
+      const mapped: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (updateData.name !== undefined) mapped.name = updateData.name;
+      if (updateData.address !== undefined) mapped.address = updateData.address || null;
+      if (updateData.phone !== undefined) mapped.phone = updateData.phone || null;
+      if (updateData.timezone !== undefined) mapped.timezone = updateData.timezone;
+
+      const { data, error } = await supabase
+        .from("locations")
+        .update(mapped)
+        .eq("id", locationId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    }),
+
+  deactivateLocation: roleProcedure("admin")
+    .input(z.object({ locationId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const { error } = await supabase
+        .from("locations")
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq("id", input.locationId);
+
+      if (error) throw new Error(error.message);
+      return { deactivated: true };
+    }),
+
   getPublicLocations: publicProcedure.query(async () => {
     const { data, error } = await supabase
       .from("locations")

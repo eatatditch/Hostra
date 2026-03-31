@@ -51,6 +51,7 @@ export default function SettingsPage() {
 
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />
+      <LocationManager />
     </div>
   );
 }
@@ -619,6 +620,223 @@ function TableManager({ locationId }: { locationId: string }) {
           />
           <Button type="submit" className="w-full" loading={createFloorPlanMutation.isPending}>
             Create Floor Plan
+          </Button>
+        </form>
+      </Modal>
+    </>
+  );
+}
+
+// ── Location Manager ──────────────────────────────────────
+
+const TIMEZONES = [
+  { value: "America/New_York", label: "Eastern (ET)" },
+  { value: "America/Chicago", label: "Central (CT)" },
+  { value: "America/Denver", label: "Mountain (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific (PT)" },
+];
+
+function LocationManager() {
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<any>(null);
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    address: "",
+    phone: "",
+    timezone: "America/New_York",
+  });
+
+  const { data: locations, isLoading } = trpc.table.getLocations.useQuery();
+  const createMutation = trpc.table.createLocation.useMutation();
+  const updateMutation = trpc.table.updateLocation.useMutation();
+  const deactivateMutation = trpc.table.deactivateLocation.useMutation();
+  const utils = trpc.useUtils();
+
+  function invalidate() {
+    utils.table.getLocations.invalidate();
+  }
+
+  async function handleDeactivateLocation(locationId: string) {
+    if (!confirm("Remove this location? It will no longer appear for guests or staff.")) return;
+    await deactivateMutation.mutateAsync({ locationId });
+    invalidate();
+  }
+
+  function resetForm() {
+    setForm({ name: "", slug: "", address: "", phone: "", timezone: "America/New_York" });
+  }
+
+  function generateSlug(name: string) {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  async function handleCreate() {
+    await createMutation.mutateAsync({
+      name: form.name,
+      slug: form.slug || generateSlug(form.name),
+      address: form.address || undefined,
+      phone: form.phone || undefined,
+      timezone: form.timezone,
+    });
+    setShowAdd(false);
+    resetForm();
+    invalidate();
+  }
+
+  async function handleUpdate() {
+    if (!editingLocation) return;
+    await updateMutation.mutateAsync({
+      locationId: editingLocation.id,
+      name: form.name,
+      address: form.address,
+      phone: form.phone,
+      timezone: form.timezone,
+    });
+    setEditingLocation(null);
+    resetForm();
+    invalidate();
+  }
+
+  function openEdit(loc: any) {
+    setForm({
+      name: loc.name,
+      slug: loc.slug,
+      address: loc.address || "",
+      phone: loc.phone || "",
+      timezone: loc.timezone || "America/New_York",
+    });
+    setEditingLocation(loc);
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Locations</CardTitle>
+          <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
+            <Plus className="h-4 w-4" />
+            Add Location
+          </Button>
+        </CardHeader>
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="h-16 bg-surface-alt rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {locations?.map((loc: any) => (
+              <div
+                key={loc.id}
+                className="flex items-center justify-between p-3 rounded-lg border border-border"
+              >
+                <div className="space-y-0.5">
+                  <span className="font-medium text-sm">{loc.name}</span>
+                  <p className="text-xs text-text-muted">
+                    {loc.address || "No address"}
+                    {loc.phone && ` · ${loc.phone}`}
+                    {" · "}
+                    {TIMEZONES.find((t) => t.value === loc.timezone)?.label || loc.timezone}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(loc)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  {(locations?.length || 0) > 1 && (
+                    <Button variant="ghost" size="sm" onClick={() => handleDeactivateLocation(loc.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-status-error" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Add Location Modal */}
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Location">
+        <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }} className="space-y-4">
+          <Input
+            label="Location Name"
+            value={form.name}
+            onChange={(e) => {
+              setForm({ ...form, name: e.target.value, slug: generateSlug(e.target.value) });
+            }}
+            placeholder="e.g. Ditch — Montauk"
+            required
+          />
+          <Input
+            label="URL Slug"
+            value={form.slug}
+            onChange={(e) => setForm({ ...form, slug: e.target.value })}
+            placeholder="e.g. montauk"
+          />
+          <Input
+            label="Address"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            placeholder="123 Main St, Town, NY"
+          />
+          <Input
+            label="Phone"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="(631) 555-0300"
+          />
+          <Select
+            label="Timezone"
+            value={form.timezone}
+            onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+            options={TIMEZONES}
+          />
+          <Button type="submit" className="w-full" loading={createMutation.isPending}>
+            Create Location
+          </Button>
+          <p className="text-xs text-text-muted text-center">
+            A default floor plan will be created automatically.
+          </p>
+        </form>
+      </Modal>
+
+      {/* Edit Location Modal */}
+      <Modal
+        open={!!editingLocation}
+        onClose={() => setEditingLocation(null)}
+        title={`Edit ${editingLocation?.name || "Location"}`}
+      >
+        <form onSubmit={(e) => { e.preventDefault(); handleUpdate(); }} className="space-y-4">
+          <Input
+            label="Location Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+          <Input
+            label="Address"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+          />
+          <Input
+            label="Phone"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+          <Select
+            label="Timezone"
+            value={form.timezone}
+            onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+            options={TIMEZONES}
+          />
+          <Button type="submit" className="w-full" loading={updateMutation.isPending}>
+            Save Changes
           </Button>
         </form>
       </Modal>
