@@ -23,6 +23,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
   const completeMutation = trpc.reservation.complete.useMutation();
   const noShowMutation = trpc.reservation.markNoShow.useMutation();
   const undoNoShowMutation = trpc.reservation.undoNoShow.useMutation();
+  const cancelMutation = trpc.reservation.cancel.useMutation();
   const utils = trpc.useUtils();
 
   function invalidate() {
@@ -47,6 +48,11 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
 
   async function handleUndoNoShow(reservationId: string) {
     await undoNoShowMutation.mutateAsync({ reservationId });
+    invalidate();
+  }
+
+  async function handleCancel(reservationId: string) {
+    await cancelMutation.mutateAsync({ reservationId });
     invalidate();
   }
 
@@ -170,6 +176,13 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                     onClick={() => handleNoShow(res.id)}
                   >
                     No-Show
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCancel(res.id)}
+                  >
+                    Cancel
                   </Button>
                 </div>
               </div>

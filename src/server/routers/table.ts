@@ -49,6 +49,7 @@ export const tableRouter = router({
         combinable: z.boolean().default(false),
         shape: z.enum(["auto", "circle", "square", "rectangle"]).default("auto"),
         rotation: z.number().int().min(0).max(359).default(0),
+        sizeMultiplier: z.number().min(0.5).max(3).default(1),
       })
     )
     .mutation(async ({ input }) => {
@@ -65,6 +66,7 @@ export const tableRouter = router({
           combinable: input.combinable,
           shape: input.shape,
           rotation: input.rotation,
+          size_multiplier: input.sizeMultiplier,
         })
         .select()
         .single();
@@ -86,6 +88,7 @@ export const tableRouter = router({
         active: z.boolean().optional(),
         shape: z.enum(["auto", "circle", "square", "rectangle"]).optional(),
         rotation: z.number().int().min(0).max(359).optional(),
+        sizeMultiplier: z.number().min(0.5).max(3).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -100,6 +103,7 @@ export const tableRouter = router({
       if (data.active !== undefined) updateData.active = data.active;
       if (data.shape !== undefined) updateData.shape = data.shape;
       if (data.rotation !== undefined) updateData.rotation = data.rotation;
+      if (data.sizeMultiplier !== undefined) updateData.size_multiplier = data.sizeMultiplier;
 
       const { data: updated, error } = await supabase
         .from("tables")
@@ -145,6 +149,30 @@ export const tableRouter = router({
 
       if (error) throw new Error(error.message);
       return fp;
+    }),
+
+  updateFloorPlanLabels: roleProcedure("admin", "manager")
+    .input(
+      z.object({
+        floorPlanId: z.string().min(1),
+        labels: z.array(
+          z.object({
+            id: z.string(),
+            text: z.string(),
+            x: z.number(),
+            y: z.number(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { error } = await supabase
+        .from("floor_plans")
+        .update({ labels: input.labels })
+        .eq("id", input.floorPlanId);
+
+      if (error) throw new Error(error.message);
+      return { success: true };
     }),
 
   getLocation: protectedProcedure
