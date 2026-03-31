@@ -407,4 +407,40 @@ export const tableRouter = router({
       if (error) throw new Error(error.message);
       return { deleted: true };
     }),
+
+  // Hosts can toggle shift active/inactive (for calendar blocking)
+  toggleShiftActive: protectedProcedure
+    .input(z.object({ shiftId: z.string().min(1), active: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const { data, error } = await supabase
+        .from("service_shifts")
+        .update({ active: input.active })
+        .eq("id", input.shiftId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    }),
+
+  // Hosts can block/unblock dates
+  blockDate: protectedProcedure
+    .input(z.object({ locationId: z.string().min(1), date: z.string(), reason: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const { error } = await supabase
+        .from("blocked_dates")
+        .upsert(
+          { location_id: input.locationId, date: input.date, reason: input.reason || null, created_by: ctx.session.id },
+          { onConflict: "location_id,date" }
+        );
+      if (error) throw new Error(error.message);
+      return { blocked: true };
+    }),
+
+  unblockDate: protectedProcedure
+    .input(z.object({ locationId: z.string().min(1), date: z.string() }))
+    .mutation(async ({ input }) => {
+      await supabase.from("blocked_dates").delete().eq("location_id", input.locationId).eq("date", input.date);
+      return { unblocked: true };
+    }),
 });

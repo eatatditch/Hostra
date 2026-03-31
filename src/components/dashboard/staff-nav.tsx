@@ -17,20 +17,24 @@ import {
 import { createSupabaseBrowser } from "@/lib/auth/supabase-browser";
 import { useRouter } from "next/navigation";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/waitlist", label: "Waitlist", icon: ListOrdered },
-  { href: "/tables", label: "Tables", icon: Grid3X3 },
-  { href: "/guests", label: "Guests", icon: Users },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+const allNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "host"] },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, roles: ["admin", "manager", "host"] },
+  { href: "/waitlist", label: "Waitlist", icon: ListOrdered, roles: ["admin", "manager", "host"] },
+  { href: "/tables", label: "Tables", icon: Grid3X3, roles: ["admin", "manager", "host"] },
+  { href: "/guests", label: "Guests", icon: Users, roles: ["admin", "manager", "host"] },
+  { href: "/reports", label: "Reports", icon: BarChart3, roles: ["admin", "manager"] },
+  { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager"] },
 ];
 
 export function StaffNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { locationId, locationName, setLocation, locations } = useLocation();
+  const { locationId, locationName, setLocation, locations, userRole } = useLocation();
+
+  const navItems = allNavItems.filter((item) =>
+    !userRole || item.roles.includes(userRole)
+  );
 
   async function handleLogout() {
     const supabase = createSupabaseBrowser();
@@ -57,12 +61,12 @@ export function StaffNav() {
             <select
               value={locationId}
               onChange={(e) => {
-                const loc = locations.find((l) => l.id === e.target.value);
+                const loc = locations.find((l: any) => l.id === e.target.value);
                 if (loc) setLocation(loc.id, loc.name);
               }}
               className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface-alt font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
-              {locations.map((loc) => (
+              {locations.map((loc: any) => (
                 <option key={loc.id} value={loc.id}>
                   {loc.name}
                 </option>
@@ -131,12 +135,12 @@ export function StaffNav() {
           <select
             value={locationId}
             onChange={(e) => {
-              const loc = locations.find((l) => l.id === e.target.value);
+              const loc = locations.find((l: any) => l.id === e.target.value);
               if (loc) setLocation(loc.id, loc.name);
             }}
             className="w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-surface-alt font-medium cursor-pointer"
           >
-            {locations.map((loc) => (
+            {locations.map((loc: any) => (
               <option key={loc.id} value={loc.id}>
                 {loc.name}
               </option>

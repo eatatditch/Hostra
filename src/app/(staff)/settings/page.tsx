@@ -31,12 +31,22 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 });
 
 export default function SettingsPage() {
-  const { locationId, locationName, isLoading: locLoading } = useLocation();
+  const { locationId, locationName, isLoading: locLoading, userRole } = useLocation();
 
   if (locLoading || !locationId) {
     return (
       <div className="p-4 lg:p-6">
         <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  // Host role cannot access settings
+  if (userRole === "host") {
+    return (
+      <div className="p-4 lg:p-6 text-center py-20">
+        <h2 className="text-xl font-display font-bold text-ditch-charcoal">Access Restricted</h2>
+        <p className="text-sm text-text-muted mt-2">Settings are only available to managers and admins.</p>
       </div>
     );
   }

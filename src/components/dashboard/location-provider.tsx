@@ -15,6 +15,7 @@ interface LocationContextType {
   setLocation: (id: string, name: string) => void;
   locations: { id: string; name: string; slug: string }[];
   isLoading: boolean;
+  userRole: string;
 }
 
 const LocationContext = createContext<LocationContextType>({
@@ -23,6 +24,7 @@ const LocationContext = createContext<LocationContextType>({
   setLocation: () => {},
   locations: [],
   isLoading: true,
+  userRole: "",
 });
 
 export function useLocation() {
@@ -33,17 +35,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [locationId, setLocationId] = useState("");
   const [locationName, setLocationName] = useState("");
 
-  // Use staff-accessible locations instead of all locations
+  const { data: me } = trpc.staff.me.useQuery();
+
   const { data: accessibleLocations, isLoading: accessLoading } =
     trpc.staff.getAccessibleLocations.useQuery();
 
-  // Fallback to all locations if staff_locations is empty (backward compat)
   const { data: allLocations, isLoading: allLoading } =
     trpc.table.getLocations.useQuery();
 
   const isLoading = accessLoading || allLoading;
 
-  // Use accessible locations if available, otherwise fall back to all
   const locations = (accessibleLocations && accessibleLocations.length > 0)
     ? accessibleLocations.map((al: any) => al.location).filter(Boolean)
     : allLocations || [];
@@ -70,7 +71,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   return (
     <LocationContext.Provider
-      value={{ locationId, locationName, setLocation, locations, isLoading }}
+      value={{ locationId, locationName, setLocation, locations, isLoading, userRole: me?.role || "" }}
     >
       {children}
     </LocationContext.Provider>

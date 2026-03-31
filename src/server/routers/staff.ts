@@ -13,6 +13,16 @@ function getAdminClient() {
 }
 
 export const staffRouter = router({
+  me: protectedProcedure.query(async ({ ctx }) => {
+    return {
+      id: ctx.session.id,
+      name: ctx.session.name,
+      email: ctx.session.email,
+      role: ctx.session.role,
+      locationId: ctx.session.locationId,
+    };
+  }),
+
   list: roleProcedure("admin")
     .query(async () => {
       const { data, error } = await supabase

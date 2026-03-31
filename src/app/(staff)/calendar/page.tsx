@@ -35,9 +35,9 @@ export default function CalendarPage() {
     { enabled: !!locationId && !!manageDay }
   );
 
-  const blockMutation = trpc.reservation.blockDate.useMutation();
-  const unblockMutation = trpc.reservation.unblockDate.useMutation();
-  const updateShiftMutation = trpc.table.updateShift.useMutation();
+  const blockMutation = trpc.table.blockDate.useMutation();
+  const unblockMutation = trpc.table.unblockDate.useMutation();
+  const toggleShiftMutation = trpc.table.toggleShiftActive.useMutation();
   const utils = trpc.useUtils();
 
   function invalidate() {
@@ -66,7 +66,7 @@ export default function CalendarPage() {
   }
 
   async function handleToggleShift(shiftId: string, currentlyActive: boolean) {
-    await updateShiftMutation.mutateAsync({ shiftId, active: !currentlyActive });
+    await toggleShiftMutation.mutateAsync({ shiftId, active: !currentlyActive });
     invalidate();
   }
 
@@ -288,7 +288,7 @@ export default function CalendarPage() {
                         variant={shift.active ? "ghost" : "accent"}
                         size="sm"
                         onClick={() => handleToggleShift(shift.id, shift.active)}
-                        loading={updateShiftMutation.isPending}
+                        loading={toggleShiftMutation.isPending}
                       >
                         {shift.active ? (
                           <><Ban className="h-3.5 w-3.5" /> Pause</>
