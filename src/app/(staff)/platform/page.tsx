@@ -118,19 +118,23 @@ export default function PlatformPage() {
             {/* Preview */}
             <div className="space-y-3 pt-4 border-t border-border">
               <p className="text-xs font-semibold text-text-muted">Preview — how it appears:</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-lg border border-border p-3 text-center">
+              <div className="space-y-3">
+                <div className="bg-white rounded-lg border border-border p-4 overflow-hidden">
                   <p className="text-[10px] text-text-muted mb-2">Sidebar</p>
-                  <HostOSLogo size="sm" />
+                  <div className="max-w-[200px]">
+                    <HostOSLogo size="sm" />
+                  </div>
                 </div>
-                <div className="bg-white rounded-lg border border-border p-3 text-center">
-                  <p className="text-[10px] text-text-muted mb-2">Login</p>
-                  <HostOSLogo size="md" />
+                <div className="bg-white rounded-lg border border-border p-4 overflow-hidden">
+                  <p className="text-[10px] text-text-muted mb-2">Login Page</p>
+                  <div className="flex justify-center">
+                    <HostOSLogo size="md" />
+                  </div>
                 </div>
-                <div className="bg-surface-alt rounded-lg border border-border p-3 text-center">
-                  <p className="text-[10px] text-text-muted mb-2">Footer</p>
-                  <div className="flex items-center justify-center gap-1 opacity-30">
-                    <span className="text-[8px]">Powered by</span>
+                <div className="bg-surface-alt rounded-lg border border-border p-4 overflow-hidden">
+                  <p className="text-[10px] text-text-muted mb-2">Guest Page Footer</p>
+                  <div className="flex items-center justify-center gap-2 opacity-30">
+                    <span className="text-xs">Powered by</span>
                     <HostOSLogo size="xs" />
                   </div>
                 </div>
