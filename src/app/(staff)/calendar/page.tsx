@@ -154,6 +154,10 @@ export default function CalendarPage() {
               <button
                 key={i}
                 onClick={() => setSelectedDay(dateStr)}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  router.push(`/dashboard?date=${dateStr}`);
+                }}
                 className={`h-20 rounded-lg border p-1.5 cursor-pointer transition-colors text-left ${
                   isBlocked
                     ? "bg-status-error/5 border-status-error/20 hover:bg-status-error/10"

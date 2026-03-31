@@ -48,6 +48,7 @@ export const tableRouter = router({
         positionY: z.number().default(0),
         combinable: z.boolean().default(false),
         shape: z.enum(["auto", "circle", "square", "rectangle"]).default("auto"),
+        rotation: z.number().int().min(0).max(359).default(0),
       })
     )
     .mutation(async ({ input }) => {
@@ -63,6 +64,7 @@ export const tableRouter = router({
           position_y: input.positionY,
           combinable: input.combinable,
           shape: input.shape,
+          rotation: input.rotation,
         })
         .select()
         .single();
@@ -83,6 +85,7 @@ export const tableRouter = router({
         combinable: z.boolean().optional(),
         active: z.boolean().optional(),
         shape: z.enum(["auto", "circle", "square", "rectangle"]).optional(),
+        rotation: z.number().int().min(0).max(359).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -96,6 +99,7 @@ export const tableRouter = router({
       if (data.combinable !== undefined) updateData.combinable = data.combinable;
       if (data.active !== undefined) updateData.active = data.active;
       if (data.shape !== undefined) updateData.shape = data.shape;
+      if (data.rotation !== undefined) updateData.rotation = data.rotation;
 
       const { data: updated, error } = await supabase
         .from("tables")

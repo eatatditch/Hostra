@@ -58,8 +58,8 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
   const [locked, setLocked] = useState(!editable);
   const [showAddTable, setShowAddTable] = useState(false);
   const [editingTable, setEditingTable] = useState<any>(null);
-  const [newTable, setNewTable] = useState({ label: "", capacity: 4, minCapacity: 1, shape: "auto" as string });
-  const [editForm, setEditForm] = useState({ label: "", capacity: 4, minCapacity: 1, shape: "auto" as string });
+    const [newTable, setNewTable] = useState({ label: "", capacity: 4, minCapacity: 1, shape: "auto" as string, rotation: 0 });
+  const [editForm, setEditForm] = useState({ label: "", capacity: 4, minCapacity: 1, shape: "auto" as string, rotation: 0 });
 
   const { data: tables, isLoading } = trpc.table.getByLocation.useQuery(
     { locationId },
@@ -165,6 +165,7 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
         capacity: table.capacity,
         minCapacity: table.min_capacity,
         shape: table.shape || "auto",
+        rotation: table.rotation || 0,
       });
       setEditingTable(table);
       return;
@@ -191,6 +192,7 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
       capacity: editForm.capacity,
       minCapacity: editForm.minCapacity,
       shape: editForm.shape as any,
+      rotation: editForm.rotation,
     });
     setEditingTable(null);
     invalidate();
@@ -215,9 +217,10 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
       positionX: 45,
       positionY: 45,
       shape: newTable.shape as any,
+      rotation: newTable.rotation,
     });
     setShowAddTable(false);
-    setNewTable({ label: "", capacity: 4, minCapacity: 1, shape: "auto" });
+    setNewTable({ label: "", capacity: 4, minCapacity: 1, shape: "auto", rotation: 0 });
     invalidate();
   }
 
@@ -334,6 +337,7 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
                     width: dims.w,
                     height: dims.h,
                     borderRadius: dims.radius,
+                    transform: table.rotation ? `rotate(${table.rotation}deg)` : undefined,
                   }}
                   onPointerDown={(e) => handlePointerDown(e, table.id)}
                   onClick={() => handleTableClick(table)}
@@ -429,6 +433,41 @@ export function FloorPlan({ locationId, editable = false }: FloorPlanProps) {
                   )}
                 >
                   {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">Rotation</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={359}
+                step={15}
+                value={editForm.rotation}
+                onChange={(e) => setEditForm({ ...editForm, rotation: parseInt(e.target.value) })}
+                className="flex-1"
+              />
+              <span className="text-sm font-medium w-10 text-right">{editForm.rotation}°</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditForm({ ...editForm, rotation: 0 })}>
+                Reset
+              </Button>
+            </div>
+            <div className="flex gap-1 mt-2">
+              {[0, 45, 90, 135, 180, 270].map((deg) => (
+                <button
+                  key={deg}
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, rotation: deg })}
+                  className={cn(
+                    "px-2 py-1 rounded text-xs font-medium border transition-colors cursor-pointer",
+                    editForm.rotation === deg
+                      ? "bg-primary text-white border-primary"
+                      : "bg-white border-border text-text hover:border-primary"
+                  )}
+                >
+                  {deg}°
                 </button>
               ))}
             </div>

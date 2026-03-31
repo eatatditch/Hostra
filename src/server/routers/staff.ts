@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { router, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
 import { supabase } from "@/lib/db";
-import { createSupabaseAdmin } from "@/lib/auth/supabase-server";
+import { createClient } from "@supabase/supabase-js";
+
+// Separate admin client for auth operations
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+}
 
 export const staffRouter = router({
   list: roleProcedure("admin")
@@ -26,21 +35,23 @@ export const staffRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // Create auth user via Supabase Admin API
-      const adminClient = await createSupabaseAdmin();
-      const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
+      const adminClient = getAdminClient();
+
+      // Create auth user
+      const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
         email: input.email,
         password: input.password,
         email_confirm: true,
       });
 
-      if (authError) throw new Error(authError.message);
+      if (authError) throw new Error(`Auth error: ${authError.message}`);
+      if (!authData.user) throw new Error("Failed to create auth user");
 
       // Create staff record
       const { data: staffRecord, error: staffError } = await supabase
         .from("staff")
         .insert({
-          auth_user_id: authUser.user.id,
+          auth_user_id: authData.user.id,
           email: input.email,
           name: input.name,
           role: input.role,
@@ -49,7 +60,11 @@ export const staffRouter = router({
         .select()
         .single();
 
-      if (staffError) throw new Error(staffError.message);
+      if (staffError) {
+        // Rollback: delete the auth user if staff record fails
+        await adminClient.auth.admin.deleteUser(authData.user.id);
+        throw new Error(`Staff error: ${staffError.message}`);
+      }
 
       return staffRecord;
     }),
@@ -91,7 +106,6 @@ export const staffRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // Get the auth user id
       const { data: staffRecord } = await supabase
         .from("staff")
         .select("auth_user_id")
@@ -100,7 +114,7 @@ export const staffRouter = router({
 
       if (!staffRecord) throw new Error("NOT_FOUND");
 
-      const adminClient = await createSupabaseAdmin();
+      const adminClient = getAdminClient();
       const { error } = await adminClient.auth.admin.updateUserById(
         staffRecord.auth_user_id,
         { password: input.newPassword }
