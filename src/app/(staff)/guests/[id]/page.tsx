@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
-import { useLocation } from "@/components/dashboard/location-provider";
 import {
   Card,
   CardHeader,
@@ -13,7 +12,7 @@ import {
   Textarea,
   TriggerBadge,
 } from "@/components/ui";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, formatTime12h } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   User,
@@ -22,18 +21,17 @@ import {
   AlertTriangle,
   Utensils,
   Calendar,
+  MapPin,
 } from "lucide-react";
 
 export default function GuestProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const { locationId, isLoading: locLoading } = useLocation();
   const [noteContent, setNoteContent] = useState("");
   const [noteFlagged, setNoteFlagged] = useState(false);
   const [newTag, setNewTag] = useState("");
 
   const { data: profile, isLoading } = trpc.guest.getProfile.useQuery(
-    { guestId: id, locationId },
-    { enabled: !!locationId }
+    { guestId: id }
   );
 
   const addNoteMutation = trpc.guest.addNote.useMutation();
@@ -42,7 +40,7 @@ export default function GuestProfilePage() {
   const utils = trpc.useUtils();
 
   function invalidate() {
-    utils.guest.getProfile.invalidate({ guestId: id, locationId });
+    utils.guest.getProfile.invalidate({ guestId: id });
   }
 
   async function handleAddNote() {
@@ -69,7 +67,7 @@ export default function GuestProfilePage() {
     invalidate();
   }
 
-  if (locLoading || isLoading || !profile) {
+  if (isLoading || !profile) {
     return (
       <div className="p-4 lg:p-6">
         <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
@@ -77,7 +75,7 @@ export default function GuestProfilePage() {
     );
   }
 
-  const metrics = profile.metrics?.[0];
+  const agg = profile.aggregatedMetrics;
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-4xl">
@@ -120,10 +118,7 @@ export default function GuestProfilePage() {
               </Badge>
             ))}
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleAddTag();
-              }}
+              onSubmit={(e) => { e.preventDefault(); handleAddTag(); }}
               className="inline-flex"
             >
               <input
@@ -138,33 +133,75 @@ export default function GuestProfilePage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Aggregated Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card padding="sm" className="text-center">
-          <p className="text-2xl font-bold text-primary">{metrics?.total_visits || 0}</p>
+          <p className="text-2xl font-bold text-primary">{agg?.totalVisits || 0}</p>
           <p className="text-xs text-text-muted">Total Visits</p>
         </Card>
         <Card padding="sm" className="text-center">
-          <p className="text-2xl font-bold text-secondary">
-            {metrics?.no_show_count || 0}
-          </p>
+          <p className="text-2xl font-bold text-secondary">{agg?.totalNoShows || 0}</p>
           <p className="text-xs text-text-muted">No-Shows</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-2xl font-bold text-accent">
-            {metrics?.avg_party_size?.toFixed(1) || "—"}
+            {agg?.avgPartySize ? agg.avgPartySize.toFixed(1) : "—"}
           </p>
           <p className="text-xs text-text-muted">Avg Party</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-2xl font-bold text-ditch-charcoal">
-            {metrics?.last_visit_at
-              ? format(new Date(metrics.last_visit_at), "MMM d")
-              : "—"}
+            {agg?.lastVisitAt ? format(new Date(agg.lastVisitAt), "MMM d") : "—"}
           </p>
           <p className="text-xs text-text-muted">Last Visit</p>
         </Card>
       </div>
+
+      {/* Locations Visited */}
+      {profile.locationsVisited?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <MapPin className="h-4 w-4 inline mr-1" />
+              Locations Visited
+            </CardTitle>
+          </CardHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {profile.locationsVisited.map((loc: any) => (
+              <div key={loc.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-alt">
+                <div>
+                  <p className="text-sm font-medium">{loc.name}</p>
+                  <p className="text-xs text-text-muted">
+                    Last visit: {format(new Date(loc.lastVisit), "MMM d, yyyy")}
+                  </p>
+                </div>
+                <Badge variant="secondary">{loc.visitCount} visits</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Per-Location Metrics */}
+      {(profile.metrics?.length || 0) > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>By Location</CardTitle>
+          </CardHeader>
+          <div className="space-y-2">
+            {profile.metrics.map((m: any) => (
+              <div key={m.location?.id || m.location_id} className="flex items-center justify-between text-sm p-2 rounded bg-surface-alt">
+                <span className="font-medium">{m.location?.name || "Unknown"}</span>
+                <div className="flex items-center gap-4 text-xs text-text-muted">
+                  <span>{m.total_visits} visits</span>
+                  <span>{m.no_show_count} no-shows</span>
+                  {m.avg_party_size && <span>avg {m.avg_party_size.toFixed(1)}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Dietary Info */}
       {(profile.dietary_restrictions || profile.allergies) && (
@@ -176,14 +213,10 @@ export default function GuestProfilePage() {
             </CardTitle>
           </CardHeader>
           {profile.dietary_restrictions && (
-            <p className="text-sm">
-              <strong>Restrictions:</strong> {profile.dietary_restrictions}
-            </p>
+            <p className="text-sm"><strong>Restrictions:</strong> {profile.dietary_restrictions}</p>
           )}
           {profile.allergies && (
-            <p className="text-sm text-status-error">
-              <strong>Allergies:</strong> {profile.allergies}
-            </p>
+            <p className="text-sm text-status-error"><strong>Allergies:</strong> {profile.allergies}</p>
           )}
         </Card>
       )}
@@ -235,9 +268,7 @@ export default function GuestProfilePage() {
                     <p className="text-xs text-text-muted mt-1">
                       {format(new Date(note.created_at), "MMM d, yyyy h:mm a")}
                       {note.flagged && (
-                        <span className="ml-2 text-status-error font-medium">
-                          Flagged
-                        </span>
+                        <span className="ml-2 text-status-error font-medium">Flagged</span>
                       )}
                     </p>
                   </div>
@@ -258,10 +289,7 @@ export default function GuestProfilePage() {
             ) : (
               <div className="space-y-2">
                 {profile.visits?.map((visit: any) => (
-                  <div
-                    key={visit.id}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm"
-                  >
+                  <div key={visit.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm">
                     <div>
                       <p className="font-medium">
                         {format(new Date(visit.seated_at), "MMM d, yyyy")}
@@ -269,11 +297,53 @@ export default function GuestProfilePage() {
                       <p className="text-xs text-text-muted">
                         Party of {visit.party_size}
                         {visit.table && ` · ${visit.table.label}`}
+                        {visit.location && (
+                          <span className="ml-1">
+                            · <MapPin className="h-3 w-3 inline" /> {visit.location.name}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <span className="text-xs text-text-muted">
                       {format(new Date(visit.seated_at), "h:mm a")}
                     </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Reservation History */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Reservation History</CardTitle>
+            </CardHeader>
+            {profile.reservations?.length === 0 ? (
+              <p className="text-sm text-text-muted py-2">No reservations</p>
+            ) : (
+              <div className="space-y-2">
+                {profile.reservations?.map((res: any) => (
+                  <div key={res.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm">
+                    <div>
+                      <p className="font-medium">
+                        {format(new Date(res.date + "T00:00:00"), "MMM d, yyyy")} at {formatTime12h(res.time)}
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        Party of {res.party_size}
+                        {res.location && (
+                          <span> · <MapPin className="h-3 w-3 inline" /> {res.location.name}</span>
+                        )}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        res.status === "completed" || res.status === "seated" ? "success" :
+                        res.status === "no_show" ? "error" :
+                        res.status === "cancelled" ? "default" : "secondary"
+                      }
+                    >
+                      {res.status.replace("_", " ")}
+                    </Badge>
                   </div>
                 ))}
               </div>
@@ -289,19 +359,16 @@ export default function GuestProfilePage() {
             ) : (
               <div className="space-y-2">
                 {profile.triggers?.map((trigger: any) => (
-                  <div
-                    key={trigger.id}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                  >
-                    <TriggerBadge
-                      type={trigger.trigger_type}
-                      severity={trigger.severity}
-                    />
+                  <div key={trigger.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                    <div className="flex items-center gap-2">
+                      <TriggerBadge type={trigger.trigger_type} severity={trigger.severity} />
+                      {trigger.location && (
+                        <span className="text-[10px] text-text-muted">{trigger.location.name}</span>
+                      )}
+                    </div>
                     <div className="text-xs text-text-muted text-right">
                       <p>{format(new Date(trigger.created_at), "MMM d")}</p>
-                      {trigger.actioned && (
-                        <p className="text-status-success">Actioned</p>
-                      )}
+                      {trigger.actioned && <p className="text-status-success">Actioned</p>}
                     </div>
                   </div>
                 ))}

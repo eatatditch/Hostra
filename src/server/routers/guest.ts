@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
 import {
-  searchGuestsSchema,
   updateGuestSchema,
   addGuestNoteSchema,
   addGuestTagSchema,
@@ -20,20 +19,15 @@ import {
 
 export const guestRouter = router({
   search: protectedProcedure
-    .input(searchGuestsSchema)
+    .input(z.object({ query: z.string().min(1).max(100) }))
     .query(async ({ input }) => {
-      return searchGuests(input.query, input.locationId);
+      return searchGuests(input.query);
     }),
 
   getProfile: protectedProcedure
-    .input(
-      z.object({
-        guestId: z.string().min(1),
-        locationId: z.string().min(1),
-      })
-    )
+    .input(z.object({ guestId: z.string().min(1) }))
     .query(async ({ input }) => {
-      return getGuestProfile(input.guestId, input.locationId);
+      return getGuestProfile(input.guestId);
     }),
 
   update: protectedProcedure

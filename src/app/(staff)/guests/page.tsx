@@ -4,33 +4,23 @@ import { useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { Card, Badge } from "@/components/ui";
-import { useLocation } from "@/components/dashboard/location-provider";
 import { formatPhone } from "@/lib/utils";
-import { Search, User } from "lucide-react";
+import { Search, User, MapPin } from "lucide-react";
 
 export default function GuestsPage() {
-  const { locationId, isLoading: locLoading } = useLocation();
   const [query, setQuery] = useState("");
 
   const { data: guests, isLoading } = trpc.guest.search.useQuery(
-    { locationId, query },
-    { enabled: query.length >= 1 && !!locationId }
+    { query },
+    { enabled: query.length >= 1 }
   );
-
-  if (locLoading || !locationId) {
-    return (
-      <div className="p-4 lg:p-6">
-        <div className="h-64 bg-surface-alt rounded-xl animate-pulse" />
-      </div>
-    );
-  }
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-display font-bold">Guests</h1>
         <p className="text-sm text-text-muted">
-          Search and manage guest profiles
+          Unified guest directory across all locations
         </p>
       </div>
 
@@ -59,7 +49,7 @@ export default function GuestsPage() {
             </p>
           ) : (
             <div className="divide-y divide-border">
-              {guests?.map((guest) => (
+              {guests?.map((guest: any) => (
                 <Link
                   key={guest.id}
                   href={`/guests/${guest.id}`}
@@ -88,10 +78,16 @@ export default function GuestsPage() {
                         {t.tag}
                       </Badge>
                     ))}
-                    {guest.metrics?.[0] && (
+                    {guest.totalVisitsAllLocations > 0 && (
                       <span className="text-xs text-text-muted">
-                        {guest.metrics[0].total_visits} visits
+                        {guest.totalVisitsAllLocations} visits
                       </span>
+                    )}
+                    {(guest.metrics?.length || 0) > 1 && (
+                      <Badge variant="secondary">
+                        <MapPin className="h-3 w-3" />
+                        {guest.metrics.length} locations
+                      </Badge>
                     )}
                   </div>
                 </Link>

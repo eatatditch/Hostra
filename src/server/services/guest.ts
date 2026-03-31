@@ -1,72 +1,117 @@
 import { supabase } from "@/lib/db";
 
-export async function searchGuests(query: string, locationId: string) {
+export async function searchGuests(query: string) {
   const pattern = `%${query}%`;
 
   const { data: guestRows, error } = await supabase
     .from("guests")
-    .select("*, tags:guest_tags(*), metrics:guest_metrics(*)")
+    .select("*, tags:guest_tags(*), metrics:guest_metrics(*, location:locations(id, name))")
     .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`)
     .limit(25);
 
   if (error) throw new Error(error.message);
 
-  // Filter metrics to only the requested location (client-side)
-  return (guestRows || []).map((g) => ({
-    ...g,
-    metrics: (g.metrics || []).filter((m: { location_id: string }) => m.location_id === locationId),
-  }));
+  // Compute total visits across all locations
+  return (guestRows || []).map((g) => {
+    const allMetrics = g.metrics || [];
+    const totalVisitsAllLocations = allMetrics.reduce(
+      (sum: number, m: any) => sum + (m.total_visits || 0),
+      0
+    );
+    return {
+      ...g,
+      totalVisitsAllLocations,
+    };
+  });
 }
 
-export async function getGuestProfile(guestId: string, locationId: string) {
+export async function getGuestProfile(guestId: string) {
   const { data: guest, error } = await supabase
     .from("guests")
-    .select("*, tags:guest_tags(*), notes:guest_notes(*), metrics:guest_metrics(*)")
+    .select("*, tags:guest_tags(*), notes:guest_notes(*), metrics:guest_metrics(*, location:locations(id, name))")
     .eq("id", guestId)
     .single();
 
   if (error || !guest) return null;
 
-  // Filter metrics to location, sort notes descending, limit 50
-  guest.metrics = (guest.metrics || []).filter(
-    (m: { location_id: string }) => m.location_id === locationId
-  );
+  // Sort notes descending, limit 50
   guest.notes = (guest.notes || [])
     .sort((a: { created_at: string }, b: { created_at: string }) =>
       b.created_at.localeCompare(a.created_at)
     )
     .slice(0, 50);
 
-  // Get visit history for this location
+  // Get visit history across ALL locations, with location name
   const { data: visitHistory } = await supabase
     .from("visits")
-    .select("*, table:tables(*)")
+    .select("*, table:tables(*), location:locations(id, name)")
     .eq("guest_id", guestId)
-    .eq("location_id", locationId)
     .order("seated_at", { ascending: false })
     .limit(50);
 
-  // Get communication history
+  // Get reservation history across ALL locations for "locations visited"
+  const { data: reservationHistory } = await supabase
+    .from("reservations")
+    .select("id, location_id, date, time, party_size, status, location:locations(id, name)")
+    .eq("guest_id", guestId)
+    .order("date", { ascending: false })
+    .limit(50);
+
+  // Get communication history across all locations
   const { data: commHistory } = await supabase
     .from("communications")
-    .select("*")
+    .select("*, location:locations(id, name)")
     .eq("guest_id", guestId)
-    .eq("location_id", locationId)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // Get trigger history
+  // Get trigger history across all locations
   const { data: triggerHistory } = await supabase
     .from("trigger_events")
-    .select("*")
+    .select("*, location:locations(id, name)")
     .eq("guest_id", guestId)
-    .eq("location_id", locationId)
     .order("created_at", { ascending: false })
     .limit(50);
+
+  // Build "locations visited" summary from completed visits (not no-shows)
+  const locationsVisited = new Map<string, { id: string; name: string; visitCount: number; lastVisit: string }>();
+  for (const visit of visitHistory || []) {
+    if (!visit.location) continue;
+    const existing = locationsVisited.get(visit.location.id);
+    if (existing) {
+      existing.visitCount++;
+      if (visit.seated_at > existing.lastVisit) existing.lastVisit = visit.seated_at;
+    } else {
+      locationsVisited.set(visit.location.id, {
+        id: visit.location.id,
+        name: visit.location.name,
+        visitCount: 1,
+        lastVisit: visit.seated_at,
+      });
+    }
+  }
+
+  // Aggregate metrics across all locations
+  const allMetrics = guest.metrics || [];
+  const aggregatedMetrics = {
+    totalVisits: allMetrics.reduce((s: number, m: any) => s + (m.total_visits || 0), 0),
+    totalNoShows: allMetrics.reduce((s: number, m: any) => s + (m.no_show_count || 0), 0),
+    avgPartySize: allMetrics.length > 0
+      ? allMetrics.reduce((s: number, m: any) => s + (m.avg_party_size || 0), 0) / allMetrics.length
+      : 0,
+    lastVisitAt: allMetrics
+      .map((m: any) => m.last_visit_at)
+      .filter(Boolean)
+      .sort()
+      .reverse()[0] || null,
+  };
 
   return {
     ...guest,
+    aggregatedMetrics,
+    locationsVisited: Array.from(locationsVisited.values()),
     visits: visitHistory || [],
+    reservations: reservationHistory || [],
     communications: commHistory || [],
     triggers: triggerHistory || [],
   };
@@ -103,7 +148,6 @@ export async function updateGuest(
     .single();
 
   if (error) throw new Error(error.message);
-
   return updated;
 }
 
@@ -133,7 +177,6 @@ export async function addTag(guestId: string, tag: string, staffId: string) {
     .select()
     .single();
 
-  // If the upsert returned nothing due to ignoreDuplicates, that's ok
   if (error && !error.message.includes("No rows")) throw new Error(error.message);
   return result;
 }
@@ -150,55 +193,15 @@ export async function mergeGuests(
   primaryId: string,
   duplicateId: string
 ) {
-  // Move all references from duplicate to primary
-  await supabase
-    .from("reservations")
-    .update({ guest_id: primaryId })
-    .eq("guest_id", duplicateId);
-
-  await supabase
-    .from("waitlist_entries")
-    .update({ guest_id: primaryId })
-    .eq("guest_id", duplicateId);
-
-  await supabase
-    .from("visits")
-    .update({ guest_id: primaryId })
-    .eq("guest_id", duplicateId);
-
-  await supabase
-    .from("communications")
-    .update({ guest_id: primaryId })
-    .eq("guest_id", duplicateId);
-
-  await supabase
-    .from("trigger_events")
-    .update({ guest_id: primaryId })
-    .eq("guest_id", duplicateId);
-
-  // Move notes (skip tag conflicts)
-  await supabase
-    .from("guest_notes")
-    .update({ guest_id: primaryId })
-    .eq("guest_id", duplicateId);
-
-  // Delete duplicate's tags (primary keeps theirs)
-  await supabase
-    .from("guest_tags")
-    .delete()
-    .eq("guest_id", duplicateId);
-
-  // Delete duplicate's metrics
-  await supabase
-    .from("guest_metrics")
-    .delete()
-    .eq("guest_id", duplicateId);
-
-  // Delete duplicate guest
-  await supabase
-    .from("guests")
-    .delete()
-    .eq("id", duplicateId);
+  await supabase.from("reservations").update({ guest_id: primaryId }).eq("guest_id", duplicateId);
+  await supabase.from("waitlist_entries").update({ guest_id: primaryId }).eq("guest_id", duplicateId);
+  await supabase.from("visits").update({ guest_id: primaryId }).eq("guest_id", duplicateId);
+  await supabase.from("communications").update({ guest_id: primaryId }).eq("guest_id", duplicateId);
+  await supabase.from("trigger_events").update({ guest_id: primaryId }).eq("guest_id", duplicateId);
+  await supabase.from("guest_notes").update({ guest_id: primaryId }).eq("guest_id", duplicateId);
+  await supabase.from("guest_tags").delete().eq("guest_id", duplicateId);
+  await supabase.from("guest_metrics").delete().eq("guest_id", duplicateId);
+  await supabase.from("guests").delete().eq("id", duplicateId);
 
   return { merged: true, primaryId };
 }
