@@ -1,6 +1,4 @@
-import { db } from "@/lib/db";
-import { communications } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 interface SendSmsParams {
   to: string;
@@ -14,20 +12,23 @@ interface SendSmsParams {
 
 export async function sendSms(params: SendSmsParams) {
   // Log the communication first
-  const [comm] = await db
-    .insert(communications)
-    .values({
-      guestId: params.guestId,
-      locationId: params.locationId,
+  const { data: comm, error: insertError } = await supabase
+    .from("communications")
+    .insert({
+      guest_id: params.guestId,
+      location_id: params.locationId,
       channel: "sms",
       direction: "outbound",
-      templateKey: params.templateKey || null,
+      template_key: params.templateKey || null,
       content: params.body,
       status: "queued",
-      relatedType: params.relatedType || null,
-      relatedId: params.relatedId || null,
+      related_type: params.relatedType || null,
+      related_id: params.relatedId || null,
     })
-    .returning();
+    .select()
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
 
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -36,10 +37,10 @@ export async function sendSms(params: SendSmsParams) {
 
     if (!accountSid || !authToken || !fromNumber) {
       console.warn("Twilio not configured, skipping SMS send");
-      await db
-        .update(communications)
-        .set({ status: "failed" })
-        .where(eq(communications.id, comm.id));
+      await supabase
+        .from("communications")
+        .update({ status: "failed" })
+        .eq("id", comm.id);
       return comm;
     }
 
@@ -62,27 +63,27 @@ export async function sendSms(params: SendSmsParams) {
     const result = await response.json();
 
     if (response.ok) {
-      await db
-        .update(communications)
-        .set({
+      await supabase
+        .from("communications")
+        .update({
           status: "sent",
-          externalId: result.sid,
-          sentAt: new Date(),
+          external_id: result.sid,
+          sent_at: new Date().toISOString(),
         })
-        .where(eq(communications.id, comm.id));
+        .eq("id", comm.id);
     } else {
-      await db
-        .update(communications)
-        .set({ status: "failed" })
-        .where(eq(communications.id, comm.id));
+      await supabase
+        .from("communications")
+        .update({ status: "failed" })
+        .eq("id", comm.id);
     }
 
     return comm;
   } catch (error) {
-    await db
-      .update(communications)
-      .set({ status: "failed" })
-      .where(eq(communications.id, comm.id));
+    await supabase
+      .from("communications")
+      .update({ status: "failed" })
+      .eq("id", comm.id);
     throw error;
   }
 }

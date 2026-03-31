@@ -1,20 +1,20 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
-import { db } from "@/lib/db";
-import { tables, floorPlans, locations } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 export const tableRouter = router({
   getByLocation: protectedProcedure
     .input(z.object({ locationId: z.string().uuid() }))
     .query(async ({ input }) => {
-      return db.query.tables.findMany({
-        where: and(
-          eq(tables.locationId, input.locationId),
-          eq(tables.active, true)
-        ),
-        orderBy: (t, { asc }) => [asc(t.label)],
-      });
+      const { data, error } = await supabase
+        .from("tables")
+        .select("*")
+        .eq("location_id", input.locationId)
+        .eq("active", true)
+        .order("label", { ascending: true });
+
+      if (error) throw new Error(error.message);
+      return data;
     }),
 
   updateStatus: protectedProcedure
@@ -25,11 +25,14 @@ export const tableRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const [updated] = await db
-        .update(tables)
-        .set({ status: input.status })
-        .where(eq(tables.id, input.tableId))
-        .returning();
+      const { data: updated, error } = await supabase
+        .from("tables")
+        .update({ status: input.status })
+        .eq("id", input.tableId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
       return updated;
     }),
 
@@ -47,7 +50,22 @@ export const tableRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const [table] = await db.insert(tables).values(input).returning();
+      const { data: table, error } = await supabase
+        .from("tables")
+        .insert({
+          location_id: input.locationId,
+          floor_plan_id: input.floorPlanId,
+          label: input.label,
+          capacity: input.capacity,
+          min_capacity: input.minCapacity,
+          position_x: input.positionX,
+          position_y: input.positionY,
+          combinable: input.combinable,
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
       return table;
     }),
 
@@ -66,28 +84,42 @@ export const tableRouter = router({
     )
     .mutation(async ({ input }) => {
       const { tableId, ...data } = input;
-      const [updated] = await db
-        .update(tables)
-        .set(data)
-        .where(eq(tables.id, tableId))
-        .returning();
+      const updateData: Record<string, unknown> = {};
+      if (data.label !== undefined) updateData.label = data.label;
+      if (data.capacity !== undefined) updateData.capacity = data.capacity;
+      if (data.minCapacity !== undefined) updateData.min_capacity = data.minCapacity;
+      if (data.positionX !== undefined) updateData.position_x = data.positionX;
+      if (data.positionY !== undefined) updateData.position_y = data.positionY;
+      if (data.combinable !== undefined) updateData.combinable = data.combinable;
+      if (data.active !== undefined) updateData.active = data.active;
+
+      const { data: updated, error } = await supabase
+        .from("tables")
+        .update(updateData)
+        .eq("id", tableId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
       return updated;
     }),
 
   getFloorPlans: protectedProcedure
     .input(z.object({ locationId: z.string().uuid() }))
     .query(async ({ input }) => {
-      return db.query.floorPlans.findMany({
-        where: and(
-          eq(floorPlans.locationId, input.locationId),
-          eq(floorPlans.active, true)
-        ),
-        with: {
-          tables: {
-            where: eq(tables.active, true),
-          },
-        },
-      });
+      const { data, error } = await supabase
+        .from("floor_plans")
+        .select("*, tables:tables(*)")
+        .eq("location_id", input.locationId)
+        .eq("active", true);
+
+      if (error) throw new Error(error.message);
+
+      // Filter tables to only active ones (client-side since nested filter not supported)
+      return (data || []).map((fp) => ({
+        ...fp,
+        tables: (fp.tables || []).filter((t: { active: boolean }) => t.active),
+      }));
     }),
 
   createFloorPlan: roleProcedure("admin", "manager")
@@ -98,34 +130,50 @@ export const tableRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const [fp] = await db.insert(floorPlans).values(input).returning();
+      const { data: fp, error } = await supabase
+        .from("floor_plans")
+        .insert({
+          location_id: input.locationId,
+          name: input.name,
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
       return fp;
     }),
 
   getLocation: protectedProcedure
     .input(z.object({ locationId: z.string().uuid() }))
     .query(async ({ input }) => {
-      return db.query.locations.findFirst({
-        where: eq(locations.id, input.locationId),
-      });
+      const { data, error } = await supabase
+        .from("locations")
+        .select("*")
+        .eq("id", input.locationId)
+        .single();
+
+      if (error) return null;
+      return data;
     }),
 
   getLocations: protectedProcedure.query(async () => {
-    return db.query.locations.findMany({
-      where: eq(locations.active, true),
-    });
+    const { data, error } = await supabase
+      .from("locations")
+      .select("*")
+      .eq("active", true);
+
+    if (error) throw new Error(error.message);
+    return data;
   }),
 
   getPublicLocations: publicProcedure.query(async () => {
-    return db
-      .select({
-        id: locations.id,
-        name: locations.name,
-        slug: locations.slug,
-        address: locations.address,
-      })
-      .from(locations)
-      .where(eq(locations.active, true))
-      .orderBy(locations.name);
+    const { data, error } = await supabase
+      .from("locations")
+      .select("id, name, slug, address")
+      .eq("active", true)
+      .order("name", { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data;
   }),
 });

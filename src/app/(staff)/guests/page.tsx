@@ -80,7 +80,7 @@ export default function GuestsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {guest.tags?.map((t) => (
+                    {guest.tags?.map((t: any) => (
                       <Badge
                         key={t.id}
                         variant={t.tag === "VIP" ? "primary" : "default"}

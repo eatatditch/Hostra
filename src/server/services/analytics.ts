@@ -1,11 +1,4 @@
-import { db } from "@/lib/db";
-import {
-  reservations,
-  waitlistEntries,
-  visits,
-  triggerEvents,
-} from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 export interface DailySummary {
   date: string;
@@ -25,61 +18,73 @@ export async function getDailySummary(
   locationId: string,
   date: string
 ): Promise<DailySummary> {
-  const [resStats] = await db
-    .select({
-      total: sql<number>`count(*)::int`,
-      seated: sql<number>`count(*) filter (where ${reservations.status} IN ('seated', 'completed'))::int`,
-      noShow: sql<number>`count(*) filter (where ${reservations.status} = 'no_show')::int`,
-      cancelled: sql<number>`count(*) filter (where ${reservations.status} = 'cancelled')::int`,
-      totalCovers: sql<number>`coalesce(sum(${reservations.partySize}) filter (where ${reservations.status} IN ('seated', 'completed')), 0)::int`,
-      avgParty: sql<number>`coalesce(avg(${reservations.partySize})::real, 0)`,
-    })
-    .from(reservations)
-    .where(
-      and(
-        eq(reservations.locationId, locationId),
-        eq(reservations.date, date)
-      )
-    );
+  // Fetch all reservations for the date
+  const { data: resList, error: resErr } = await supabase
+    .from("reservations")
+    .select("status, party_size")
+    .eq("location_id", locationId)
+    .eq("date", date);
 
-  const [waitlistStats] = await db
-    .select({
-      joins: sql<number>`count(*)::int`,
-      seated: sql<number>`count(*) filter (where ${waitlistEntries.status} = 'seated')::int`,
-    })
-    .from(waitlistEntries)
-    .where(
-      and(
-        eq(waitlistEntries.locationId, locationId),
-        sql`${waitlistEntries.createdAt}::date = ${date}::date`
-      )
-    );
+  if (resErr) throw new Error(resErr.message);
+  const rows = resList || [];
 
-  const [triggerStats] = await db
-    .select({
-      total: sql<number>`count(*)::int`,
-      actioned: sql<number>`count(*) filter (where ${triggerEvents.actioned} = true)::int`,
-    })
-    .from(triggerEvents)
-    .where(
-      and(
-        eq(triggerEvents.locationId, locationId),
-        sql`${triggerEvents.createdAt}::date = ${date}::date`
-      )
-    );
+  const total = rows.length;
+  const seated = rows.filter(
+    (r) => r.status === "seated" || r.status === "completed"
+  ).length;
+  const noShow = rows.filter((r) => r.status === "no_show").length;
+  const cancelled = rows.filter((r) => r.status === "cancelled").length;
+  const totalCovers = rows
+    .filter((r) => r.status === "seated" || r.status === "completed")
+    .reduce((sum, r) => sum + (r.party_size || 0), 0);
+  const avgPartySize =
+    total > 0
+      ? rows.reduce((sum, r) => sum + (r.party_size || 0), 0) / total
+      : 0;
+
+  // Fetch waitlist entries created on this date
+  const dayStart = `${date}T00:00:00.000Z`;
+  const dayEnd = `${date}T23:59:59.999Z`;
+
+  const { data: waitlistRows, error: wlErr } = await supabase
+    .from("waitlist_entries")
+    .select("status")
+    .eq("location_id", locationId)
+    .gte("created_at", dayStart)
+    .lte("created_at", dayEnd);
+
+  if (wlErr) throw new Error(wlErr.message);
+  const wl = waitlistRows || [];
+
+  const waitlistJoins = wl.length;
+  const waitlistSeated = wl.filter((w) => w.status === "seated").length;
+
+  // Fetch trigger events created on this date
+  const { data: triggerRows, error: tErr } = await supabase
+    .from("trigger_events")
+    .select("actioned")
+    .eq("location_id", locationId)
+    .gte("created_at", dayStart)
+    .lte("created_at", dayEnd);
+
+  if (tErr) throw new Error(tErr.message);
+  const triggers = triggerRows || [];
+
+  const triggersTotal = triggers.length;
+  const triggersActioned = triggers.filter((t) => t.actioned === true).length;
 
   return {
     date,
-    totalReservations: resStats.total,
-    seatedCount: resStats.seated,
-    noShowCount: resStats.noShow,
-    cancelledCount: resStats.cancelled,
-    totalCovers: resStats.totalCovers,
-    avgPartySize: resStats.avgParty,
-    waitlistJoins: waitlistStats.joins,
-    waitlistSeated: waitlistStats.seated,
-    triggersTotal: triggerStats.total,
-    triggersActioned: triggerStats.actioned,
+    totalReservations: total,
+    seatedCount: seated,
+    noShowCount: noShow,
+    cancelledCount: cancelled,
+    totalCovers,
+    avgPartySize,
+    waitlistJoins,
+    waitlistSeated,
+    triggersTotal,
+    triggersActioned,
   };
 }
 
@@ -87,23 +92,49 @@ export async function getWeeklyTrend(
   locationId: string,
   endDate: string
 ) {
-  const rows = await db
-    .select({
-      date: reservations.date,
-      covers: sql<number>`coalesce(sum(${reservations.partySize}) filter (where ${reservations.status} IN ('seated', 'completed')), 0)::int`,
-      reservations: sql<number>`count(*)::int`,
-      noShows: sql<number>`count(*) filter (where ${reservations.status} = 'no_show')::int`,
-    })
-    .from(reservations)
-    .where(
-      and(
-        eq(reservations.locationId, locationId),
-        sql`${reservations.date}::date > ${endDate}::date - interval '7 days'`,
-        sql`${reservations.date}::date <= ${endDate}::date`
-      )
-    )
-    .groupBy(reservations.date)
-    .orderBy(reservations.date);
+  // Calculate start date (7 days before endDate)
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+  const startDate = start.toISOString().slice(0, 10);
 
-  return rows;
+  const { data: rows, error } = await supabase
+    .from("reservations")
+    .select("date, party_size, status")
+    .eq("location_id", locationId)
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  if (error) throw new Error(error.message);
+
+  // Group by date and aggregate
+  const byDate = new Map<
+    string,
+    { covers: number; reservations: number; noShows: number }
+  >();
+
+  for (const row of rows || []) {
+    const d = row.date;
+    if (!byDate.has(d)) {
+      byDate.set(d, { covers: 0, reservations: 0, noShows: 0 });
+    }
+    const entry = byDate.get(d)!;
+    entry.reservations += 1;
+    if (row.status === "seated" || row.status === "completed") {
+      entry.covers += row.party_size || 0;
+    }
+    if (row.status === "no_show") {
+      entry.noShows += 1;
+    }
+  }
+
+  // Sort by date and return
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, stats]) => ({
+      date,
+      covers: stats.covers,
+      reservations: stats.reservations,
+      noShows: stats.noShows,
+    }));
 }

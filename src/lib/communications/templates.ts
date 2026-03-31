@@ -1,6 +1,4 @@
-import { db } from "@/lib/db";
-import { communicationTemplates } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 interface TemplateVars {
   guest_name: string;
@@ -59,14 +57,14 @@ export async function getTemplate(
   channel: "sms" | "email"
 ): Promise<string | null> {
   // Check for custom template in DB
-  const custom = await db.query.communicationTemplates.findFirst({
-    where: and(
-      eq(communicationTemplates.locationId, locationId),
-      eq(communicationTemplates.key, key),
-      eq(communicationTemplates.channel, channel),
-      eq(communicationTemplates.active, true)
-    ),
-  });
+  const { data: custom } = await supabase
+    .from("communication_templates")
+    .select("body")
+    .eq("location_id", locationId)
+    .eq("key", key)
+    .eq("channel", channel)
+    .eq("active", true)
+    .single();
 
   if (custom) return custom.body;
 

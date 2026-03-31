@@ -1,6 +1,4 @@
-import { db } from "@/lib/db";
-import { communications } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 interface SendEmailParams {
   to: string;
@@ -14,20 +12,23 @@ interface SendEmailParams {
 }
 
 export async function sendEmail(params: SendEmailParams) {
-  const [comm] = await db
-    .insert(communications)
-    .values({
-      guestId: params.guestId,
-      locationId: params.locationId,
+  const { data: comm, error: insertError } = await supabase
+    .from("communications")
+    .insert({
+      guest_id: params.guestId,
+      location_id: params.locationId,
       channel: "email",
       direction: "outbound",
-      templateKey: params.templateKey || null,
+      template_key: params.templateKey || null,
       content: params.html,
       status: "queued",
-      relatedType: params.relatedType || null,
-      relatedId: params.relatedId || null,
+      related_type: params.relatedType || null,
+      related_id: params.relatedId || null,
     })
-    .returning();
+    .select()
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
 
   try {
     const apiKey = process.env.RESEND_API_KEY;
@@ -35,10 +36,10 @@ export async function sendEmail(params: SendEmailParams) {
 
     if (!apiKey || !fromEmail) {
       console.warn("Resend not configured, skipping email send");
-      await db
-        .update(communications)
-        .set({ status: "failed" })
-        .where(eq(communications.id, comm.id));
+      await supabase
+        .from("communications")
+        .update({ status: "failed" })
+        .eq("id", comm.id);
       return comm;
     }
 
@@ -59,27 +60,27 @@ export async function sendEmail(params: SendEmailParams) {
     const result = await response.json();
 
     if (response.ok) {
-      await db
-        .update(communications)
-        .set({
+      await supabase
+        .from("communications")
+        .update({
           status: "sent",
-          externalId: result.id,
-          sentAt: new Date(),
+          external_id: result.id,
+          sent_at: new Date().toISOString(),
         })
-        .where(eq(communications.id, comm.id));
+        .eq("id", comm.id);
     } else {
-      await db
-        .update(communications)
-        .set({ status: "failed" })
-        .where(eq(communications.id, comm.id));
+      await supabase
+        .from("communications")
+        .update({ status: "failed" })
+        .eq("id", comm.id);
     }
 
     return comm;
   } catch (error) {
-    await db
-      .update(communications)
-      .set({ status: "failed" })
-      .where(eq(communications.id, comm.id));
+    await supabase
+      .from("communications")
+      .update({ status: "failed" })
+      .eq("id", comm.id);
     throw error;
   }
 }

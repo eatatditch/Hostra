@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { communications, guests } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -14,10 +12,10 @@ export async function POST(request: NextRequest) {
 
   // Handle STOP/opt-out
   if (body.toUpperCase() === "STOP") {
-    await db
-      .update(guests)
-      .set({ smsOptOut: true, updatedAt: new Date() })
-      .where(eq(guests.phone, from));
+    await supabase
+      .from("guests")
+      .update({ sms_opt_out: true, updated_at: new Date().toISOString() })
+      .eq("phone", from);
 
     return new NextResponse(
       `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
@@ -27,10 +25,10 @@ export async function POST(request: NextRequest) {
 
   // Handle START/opt-in
   if (body.toUpperCase() === "START") {
-    await db
-      .update(guests)
-      .set({ smsOptOut: false, updatedAt: new Date() })
-      .where(eq(guests.phone, from));
+    await supabase
+      .from("guests")
+      .update({ sms_opt_out: false, updated_at: new Date().toISOString() })
+      .eq("phone", from);
 
     return new NextResponse(
       `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
@@ -39,26 +37,31 @@ export async function POST(request: NextRequest) {
   }
 
   // Log inbound message
-  const guest = await db.query.guests.findFirst({
-    where: eq(guests.phone, from),
-  });
+  const { data: guest } = await supabase
+    .from("guests")
+    .select("id")
+    .eq("phone", from)
+    .single();
 
   if (guest) {
     // Get the most recent location from their communications
-    const lastComm = await db.query.communications.findFirst({
-      where: eq(communications.guestId, guest.id),
-      orderBy: (c, { desc }) => [desc(c.createdAt)],
-    });
+    const { data: lastComm } = await supabase
+      .from("communications")
+      .select("location_id")
+      .eq("guest_id", guest.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
 
     if (lastComm) {
-      await db.insert(communications).values({
-        guestId: guest.id,
-        locationId: lastComm.locationId,
+      await supabase.from("communications").insert({
+        guest_id: guest.id,
+        location_id: lastComm.location_id,
         channel: "sms",
         direction: "inbound",
         content: body,
         status: "delivered",
-        sentAt: new Date(),
+        sent_at: new Date().toISOString(),
       });
     }
   }

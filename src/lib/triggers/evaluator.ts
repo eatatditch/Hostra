@@ -1,13 +1,4 @@
-import { db } from "@/lib/db";
-import {
-  guests,
-  guestTags,
-  guestNotes,
-  guestMetrics,
-  triggerConfigs,
-  reservations,
-} from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 import { differenceInDays, parse } from "date-fns";
 import { TriggerType, TriggerSeverity } from "@/types";
 import type { TriggerResult } from "@/types";
@@ -25,15 +16,17 @@ type TriggerEvaluator = (ctx: EvaluationContext) => Promise<TriggerResult | null
 
 const evaluators: Record<string, TriggerEvaluator> = {
   [TriggerType.BIRTHDAY]: async (ctx) => {
-    const guest = await db.query.guests.findFirst({
-      where: eq(guests.id, ctx.guestId),
-    });
-    if (!guest?.dateOfBirth) return null;
+    const { data: guest } = await supabase
+      .from("guests")
+      .select("date_of_birth")
+      .eq("id", ctx.guestId)
+      .single();
 
-    const dob = parse(guest.dateOfBirth, "yyyy-MM-dd", new Date());
+    if (!guest?.date_of_birth) return null;
+
+    const dob = parse(guest.date_of_birth, "yyyy-MM-dd", new Date());
     const resDate = parse(ctx.date, "yyyy-MM-dd", new Date());
 
-    // Set DOB to current year for comparison
     const thisYearBirthday = new Date(
       resDate.getFullYear(),
       dob.getMonth(),
@@ -49,19 +42,22 @@ const evaluators: Record<string, TriggerEvaluator> = {
           daysDiff === 0
             ? "Today is their birthday!"
             : `Birthday is ${daysDiff} day${daysDiff > 1 ? "s" : ""} away`,
-        payload: { dateOfBirth: guest.dateOfBirth, daysDiff },
+        payload: { dateOfBirth: guest.date_of_birth, daysDiff },
       };
     }
     return null;
   },
 
   [TriggerType.ANNIVERSARY]: async (ctx) => {
-    const guest = await db.query.guests.findFirst({
-      where: eq(guests.id, ctx.guestId),
-    });
-    if (!guest?.anniversaryDate) return null;
+    const { data: guest } = await supabase
+      .from("guests")
+      .select("anniversary_date")
+      .eq("id", ctx.guestId)
+      .single();
 
-    const anniv = parse(guest.anniversaryDate, "yyyy-MM-dd", new Date());
+    if (!guest?.anniversary_date) return null;
+
+    const anniv = parse(guest.anniversary_date, "yyyy-MM-dd", new Date());
     const resDate = parse(ctx.date, "yyyy-MM-dd", new Date());
 
     const thisYearAnniv = new Date(
@@ -79,21 +75,21 @@ const evaluators: Record<string, TriggerEvaluator> = {
           daysDiff === 0
             ? "Anniversary today!"
             : `Anniversary is ${daysDiff} day${daysDiff > 1 ? "s" : ""} away`,
-        payload: { anniversaryDate: guest.anniversaryDate, daysDiff },
+        payload: { anniversaryDate: guest.anniversary_date, daysDiff },
       };
     }
     return null;
   },
 
   [TriggerType.FIRST_VISIT]: async (ctx) => {
-    const metrics = await db.query.guestMetrics.findFirst({
-      where: and(
-        eq(guestMetrics.guestId, ctx.guestId),
-        eq(guestMetrics.locationId, ctx.locationId)
-      ),
-    });
+    const { data: metrics } = await supabase
+      .from("guest_metrics")
+      .select("total_visits")
+      .eq("guest_id", ctx.guestId)
+      .eq("location_id", ctx.locationId)
+      .single();
 
-    if (!metrics || metrics.totalVisits === 0) {
+    if (!metrics || metrics.total_visits === 0) {
       return {
         type: TriggerType.FIRST_VISIT,
         severity: TriggerSeverity.ACTION,
@@ -108,21 +104,21 @@ const evaluators: Record<string, TriggerEvaluator> = {
     const config = await getConfig(ctx.locationId, TriggerType.RETURNING_AFTER_ABSENCE);
     const thresholdDays = (config?.threshold as Record<string, number>)?.days || 90;
 
-    const metrics = await db.query.guestMetrics.findFirst({
-      where: and(
-        eq(guestMetrics.guestId, ctx.guestId),
-        eq(guestMetrics.locationId, ctx.locationId)
-      ),
-    });
+    const { data: metrics } = await supabase
+      .from("guest_metrics")
+      .select("total_visits, last_visit_at")
+      .eq("guest_id", ctx.guestId)
+      .eq("location_id", ctx.locationId)
+      .single();
 
-    if (metrics?.lastVisitAt && metrics.totalVisits > 0) {
-      const daysSince = differenceInDays(new Date(), metrics.lastVisitAt);
+    if (metrics?.last_visit_at && metrics.total_visits > 0) {
+      const daysSince = differenceInDays(new Date(), new Date(metrics.last_visit_at));
       if (daysSince >= thresholdDays) {
         return {
           type: TriggerType.RETURNING_AFTER_ABSENCE,
           severity: TriggerSeverity.ACTION,
           message: `Returning after ${daysSince} days`,
-          payload: { daysSinceLastVisit: daysSince, lastVisitAt: metrics.lastVisitAt },
+          payload: { daysSinceLastVisit: daysSince, lastVisitAt: metrics.last_visit_at },
         };
       }
     }
@@ -130,11 +126,12 @@ const evaluators: Record<string, TriggerEvaluator> = {
   },
 
   [TriggerType.VIP]: async (ctx) => {
-    const tags = await db.query.guestTags.findMany({
-      where: eq(guestTags.guestId, ctx.guestId),
-    });
+    const { data: tags } = await supabase
+      .from("guest_tags")
+      .select("tag")
+      .eq("guest_id", ctx.guestId);
 
-    if (tags.some((t) => t.tag.toLowerCase() === "vip")) {
+    if (tags && tags.some((t) => t.tag.toLowerCase() === "vip")) {
       return {
         type: TriggerType.VIP,
         severity: TriggerSeverity.CRITICAL,
@@ -149,57 +146,57 @@ const evaluators: Record<string, TriggerEvaluator> = {
     const config = await getConfig(ctx.locationId, TriggerType.HIGH_FREQUENCY);
     const threshold = (config?.threshold as Record<string, number>)?.visitsPerMonth || 4;
 
-    const [recent] = await db
-      .select({
-        count: sql<number>`count(*)::int`,
-      })
-      .from(reservations)
-      .where(
-        and(
-          eq(reservations.guestId, ctx.guestId),
-          eq(reservations.locationId, ctx.locationId),
-          sql`${reservations.status} IN ('seated', 'completed')`,
-          sql`${reservations.date}::date > current_date - interval '30 days'`
-        )
-      );
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoffDate = thirtyDaysAgo.toISOString().slice(0, 10);
 
-    if (recent.count >= threshold) {
+    const { count } = await supabase
+      .from("reservations")
+      .select("*", { count: "exact", head: true })
+      .eq("guest_id", ctx.guestId)
+      .eq("location_id", ctx.locationId)
+      .in("status", ["seated", "completed"])
+      .gte("date", cutoffDate);
+
+    const recentCount = count || 0;
+
+    if (recentCount >= threshold) {
       return {
         type: TriggerType.HIGH_FREQUENCY,
         severity: TriggerSeverity.INFO,
-        message: `${recent.count} visits in the last 30 days`,
-        payload: { recentVisitCount: recent.count },
+        message: `${recentCount} visits in the last 30 days`,
+        payload: { recentVisitCount: recentCount },
       };
     }
     return null;
   },
 
   [TriggerType.NO_SHOW_RISK]: async (ctx) => {
-    const metrics = await db.query.guestMetrics.findFirst({
-      where: and(
-        eq(guestMetrics.guestId, ctx.guestId),
-        eq(guestMetrics.locationId, ctx.locationId)
-      ),
-    });
+    const { data: metrics } = await supabase
+      .from("guest_metrics")
+      .select("no_show_count")
+      .eq("guest_id", ctx.guestId)
+      .eq("location_id", ctx.locationId)
+      .single();
 
-    if (metrics && metrics.noShowCount >= 2) {
+    if (metrics && metrics.no_show_count >= 2) {
       return {
         type: TriggerType.NO_SHOW_RISK,
         severity: TriggerSeverity.CRITICAL,
-        message: `${metrics.noShowCount} prior no-shows`,
-        payload: { noShowCount: metrics.noShowCount },
+        message: `${metrics.no_show_count} prior no-shows`,
+        payload: { noShowCount: metrics.no_show_count },
       };
     }
     return null;
   },
 
   [TriggerType.PREFERRED_SEATING]: async (ctx) => {
-    // Check guest notes for seating preferences
-    const notes = await db.query.guestNotes.findMany({
-      where: eq(guestNotes.guestId, ctx.guestId),
-    });
+    const { data: notes } = await supabase
+      .from("guest_notes")
+      .select("content")
+      .eq("guest_id", ctx.guestId);
 
-    const seatNotes = notes.filter(
+    const seatNotes = (notes || []).filter(
       (n) =>
         n.content.toLowerCase().includes("seat") ||
         n.content.toLowerCase().includes("table") ||
@@ -220,16 +217,15 @@ const evaluators: Record<string, TriggerEvaluator> = {
   },
 
   [TriggerType.PRIOR_ISSUE]: async (ctx) => {
-    const flaggedNotes = await db.query.guestNotes.findMany({
-      where: and(
-        eq(guestNotes.guestId, ctx.guestId),
-        eq(guestNotes.flagged, true)
-      ),
-      orderBy: (n, { desc }) => [desc(n.createdAt)],
-      limit: 1,
-    });
+    const { data: flaggedNotes } = await supabase
+      .from("guest_notes")
+      .select("content")
+      .eq("guest_id", ctx.guestId)
+      .eq("flagged", true)
+      .order("created_at", { ascending: false })
+      .limit(1);
 
-    if (flaggedNotes.length > 0) {
+    if (flaggedNotes && flaggedNotes.length > 0) {
       return {
         type: TriggerType.PRIOR_ISSUE,
         severity: TriggerSeverity.CRITICAL,
@@ -241,16 +237,16 @@ const evaluators: Record<string, TriggerEvaluator> = {
   },
 
   [TriggerType.MILESTONE_VISIT]: async (ctx) => {
-    const metrics = await db.query.guestMetrics.findFirst({
-      where: and(
-        eq(guestMetrics.guestId, ctx.guestId),
-        eq(guestMetrics.locationId, ctx.locationId)
-      ),
-    });
+    const { data: metrics } = await supabase
+      .from("guest_metrics")
+      .select("total_visits")
+      .eq("guest_id", ctx.guestId)
+      .eq("location_id", ctx.locationId)
+      .single();
 
     const milestones = [5, 10, 25, 50, 100];
     if (metrics) {
-      const nextVisitCount = metrics.totalVisits + 1;
+      const nextVisitCount = metrics.total_visits + 1;
       if (milestones.includes(nextVisitCount)) {
         return {
           type: TriggerType.MILESTONE_VISIT,
@@ -292,37 +288,41 @@ const evaluators: Record<string, TriggerEvaluator> = {
 };
 
 async function getConfig(locationId: string, triggerType: string) {
-  return db.query.triggerConfigs.findFirst({
-    where: and(
-      eq(triggerConfigs.locationId, locationId),
-      eq(triggerConfigs.triggerType, triggerType as any)
-    ),
-  });
+  const { data } = await supabase
+    .from("trigger_configs")
+    .select("*")
+    .eq("location_id", locationId)
+    .eq("trigger_type", triggerType)
+    .single();
+
+  return data;
 }
 
 export async function evaluateTriggers(
   ctx: EvaluationContext
 ): Promise<TriggerResult[]> {
   // Get enabled triggers for this location
-  const configs = await db.query.triggerConfigs.findMany({
-    where: eq(triggerConfigs.locationId, ctx.locationId),
-  });
+  const { data: configs } = await supabase
+    .from("trigger_configs")
+    .select("*")
+    .eq("location_id", ctx.locationId);
 
+  const configList = configs || [];
   const enabledTypes = new Set<string>();
   const allTypes = Object.keys(evaluators);
 
   // If no configs exist, all triggers are enabled by default
-  if (configs.length === 0) {
+  if (configList.length === 0) {
     allTypes.forEach((t) => enabledTypes.add(t));
   } else {
-    for (const config of configs) {
+    for (const config of configList) {
       if (config.enabled) {
-        enabledTypes.add(config.triggerType);
+        enabledTypes.add(config.trigger_type);
       }
     }
     // Types not in config are enabled by default
     for (const type of allTypes) {
-      if (!configs.find((c) => c.triggerType === type)) {
+      if (!configList.find((c) => c.trigger_type === type)) {
         enabledTypes.add(type);
       }
     }

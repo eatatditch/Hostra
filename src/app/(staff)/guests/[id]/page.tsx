@@ -102,7 +102,7 @@ export default function GuestProfilePage() {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap pt-1">
-            {profile.tags?.map((t) => (
+            {profile.tags?.map((t: any) => (
               <Badge
                 key={t.id}
                 variant={t.tag === "VIP" ? "primary" : "default"}
@@ -219,7 +219,7 @@ export default function GuestProfilePage() {
               {profile.notes?.length === 0 ? (
                 <p className="text-sm text-text-muted py-2">No notes yet</p>
               ) : (
-                profile.notes?.map((note) => (
+                profile.notes?.map((note: any) => (
                   <div
                     key={note.id}
                     className={`p-2 rounded text-sm ${note.flagged ? "bg-status-error/5 border border-status-error/20" : "bg-surface-alt"}`}
@@ -250,7 +250,7 @@ export default function GuestProfilePage() {
               <p className="text-sm text-text-muted py-2">No visits recorded</p>
             ) : (
               <div className="space-y-2">
-                {profile.visits?.map((visit) => (
+                {profile.visits?.map((visit: any) => (
                   <div
                     key={visit.id}
                     className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm"
@@ -281,7 +281,7 @@ export default function GuestProfilePage() {
               <p className="text-sm text-text-muted py-2">No triggers recorded</p>
             ) : (
               <div className="space-y-2">
-                {profile.triggers?.map((trigger) => (
+                {profile.triggers?.map((trigger: any) => (
                   <div
                     key={trigger.id}
                     className="flex items-center justify-between py-2 border-b border-border last:border-0"

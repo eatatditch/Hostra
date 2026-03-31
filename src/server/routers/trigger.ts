@@ -1,9 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
 import { evaluateTriggers } from "@/lib/triggers";
-import { db } from "@/lib/db";
-import { triggerEvents, triggerConfigs, reservations } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 
 export const triggerRouter = router({
   evaluate: protectedProcedure
@@ -29,15 +27,18 @@ export const triggerRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const [updated] = await db
-        .update(triggerEvents)
-        .set({
+      const { data: updated, error } = await supabase
+        .from("trigger_events")
+        .update({
           actioned: true,
-          actionedBy: ctx.session.id,
-          actionedNote: input.note || null,
+          actioned_by: ctx.session.id,
+          actioned_note: input.note || null,
         })
-        .where(eq(triggerEvents.id, input.triggerEventId))
-        .returning();
+        .eq("id", input.triggerEventId)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
       return updated;
     }),
 
@@ -61,30 +62,35 @@ export const triggerRouter = router({
     .mutation(async ({ input }) => {
       if (input.triggers.length === 0) return [];
 
-      const events = await db
-        .insert(triggerEvents)
-        .values(
-          input.triggers.map((t) => ({
-            locationId: input.locationId,
-            guestId: input.guestId,
-            reservationId: input.reservationId || null,
-            waitlistEntryId: input.waitlistEntryId || null,
-            triggerType: t.type as any,
-            severity: t.severity as any,
-            payload: t.payload,
-          }))
-        )
-        .returning();
+      const rows = input.triggers.map((t) => ({
+        location_id: input.locationId,
+        guest_id: input.guestId,
+        reservation_id: input.reservationId || null,
+        waitlist_entry_id: input.waitlistEntryId || null,
+        trigger_type: t.type,
+        severity: t.severity,
+        payload: t.payload,
+      }));
 
+      const { data: events, error } = await supabase
+        .from("trigger_events")
+        .insert(rows)
+        .select();
+
+      if (error) throw new Error(error.message);
       return events;
     }),
 
   getConfig: roleProcedure("admin", "manager")
     .input(z.object({ locationId: z.string().uuid() }))
     .query(async ({ input }) => {
-      return db.query.triggerConfigs.findMany({
-        where: eq(triggerConfigs.locationId, input.locationId),
-      });
+      const { data, error } = await supabase
+        .from("trigger_configs")
+        .select("*")
+        .eq("location_id", input.locationId);
+
+      if (error) throw new Error(error.message);
+      return data;
     }),
 
   updateConfig: roleProcedure("admin", "manager")
@@ -97,26 +103,23 @@ export const triggerRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const [result] = await db
-        .insert(triggerConfigs)
-        .values({
-          locationId: input.locationId,
-          triggerType: input.triggerType as any,
-          enabled: input.enabled,
-          threshold: input.threshold || {},
-          updatedBy: ctx.session.id,
-        })
-        .onConflictDoUpdate({
-          target: [triggerConfigs.locationId, triggerConfigs.triggerType],
-          set: {
+      const { data: result, error } = await supabase
+        .from("trigger_configs")
+        .upsert(
+          {
+            location_id: input.locationId,
+            trigger_type: input.triggerType,
             enabled: input.enabled,
             threshold: input.threshold || {},
-            updatedBy: ctx.session.id,
-            updatedAt: new Date(),
+            updated_by: ctx.session.id,
+            updated_at: new Date().toISOString(),
           },
-        })
-        .returning();
+          { onConflict: "location_id,trigger_type" }
+        )
+        .select()
+        .single();
 
+      if (error) throw new Error(error.message);
       return result;
     }),
 });

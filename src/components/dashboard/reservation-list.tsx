@@ -95,7 +95,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                     <span className="font-semibold">
                       {res.guest.firstName} {res.guest.lastName}
                     </span>
-                    {res.guest.tags?.map((t) => (
+                    {res.guest.tags?.map((t: any) => (
                       <Badge
                         key={t.id}
                         variant={t.tag === "VIP" ? "primary" : "default"}

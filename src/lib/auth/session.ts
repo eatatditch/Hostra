@@ -1,7 +1,5 @@
 import { createSupabaseServer } from "./supabase-server";
-import { db } from "@/lib/db";
-import { staff } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { supabase } from "@/lib/db";
 import type { StaffRole } from "@/types";
 
 export interface StaffSession {
@@ -15,22 +13,21 @@ export interface StaffSession {
 
 export async function getSession(): Promise<StaffSession | null> {
   try {
-    const supabase = await createSupabaseServer();
+    const supabaseAuth = await createSupabaseServer();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabaseAuth.auth.getUser();
 
     if (!user) return null;
 
-    // Use Drizzle directly to bypass RLS
-    const staffRecord = await db.query.staff.findFirst({
-      where: and(
-        eq(staff.authUserId, user.id),
-        eq(staff.active, true)
-      ),
-    });
+    const { data: staffRecord, error } = await supabase
+      .from("staff")
+      .select("*")
+      .eq("auth_user_id", user.id)
+      .eq("active", true)
+      .single();
 
-    if (!staffRecord) return null;
+    if (error || !staffRecord) return null;
 
     return {
       id: staffRecord.id,
@@ -38,7 +35,7 @@ export async function getSession(): Promise<StaffSession | null> {
       email: user.email!,
       name: staffRecord.name,
       role: staffRecord.role as StaffRole,
-      locationId: staffRecord.locationId,
+      locationId: staffRecord.location_id,
     };
   } catch {
     return null;
