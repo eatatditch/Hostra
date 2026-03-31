@@ -51,7 +51,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (locations.length > 0 && !locationId) {
       const saved = typeof window !== "undefined"
-        ? localStorage.getItem("hostra-location-id")
+        ? localStorage.getItem("hostos-location-id")
         : null;
       const match = saved ? locations.find((l: any) => l.id === saved) : null;
       const loc = match || locations[0];
@@ -64,7 +64,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setLocationId(id);
     setLocationName(name);
     if (typeof window !== "undefined") {
-      localStorage.setItem("hostra-location-id", id);
+      localStorage.setItem("hostos-location-id", id);
     }
   }
 

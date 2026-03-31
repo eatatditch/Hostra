@@ -46,7 +46,7 @@ export function StaffNav() {
         <div className="px-6 py-5 border-b border-border">
           <Link href="/dashboard">
             <h1 className="text-2xl font-display font-bold text-ditch-charcoal">
-              Hostra
+              HostOS
             </h1>
           </Link>
         </div>

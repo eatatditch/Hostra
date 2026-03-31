@@ -3,7 +3,7 @@ import { Inngest } from "inngest";
 import { dispatchNotification } from "@/lib/communications/dispatcher";
 import { supabase } from "@/lib/db";
 
-export const inngest = new Inngest({ id: "hostra" });
+export const inngest = new Inngest({ id: "hostos" });
 
 const sendConfirmation = inngest.createFunction(
   {

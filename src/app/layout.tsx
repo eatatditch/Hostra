@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "Hostra — Ditch Hospitality Platform",
-  description: "The hospitality operating system for Ditch.",
+  title: "HostOS — Powered by GuestIQ",
+  description: "The hospitality operating system powered by GuestIQ.",
 };
 
 export default function RootLayout({

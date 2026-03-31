@@ -41,7 +41,7 @@ export default function LoginForm() {
       <Card className="w-full max-w-sm">
         <div className="text-center pb-6">
           <h1 className="text-3xl font-display font-bold text-ditch-charcoal">
-            Hostra
+            HostOS
           </h1>
           <p className="text-sm text-text-muted mt-1">Staff Login</p>
         </div>

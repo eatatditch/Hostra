@@ -5,10 +5,10 @@ export default function HomePage() {
     <div className="min-h-screen flex items-center justify-center bg-surface">
       <div className="text-center space-y-6 px-4">
         <h1 className="text-5xl font-display font-bold text-ditch-charcoal">
-          Hostra
+          HostOS
         </h1>
         <p className="text-lg text-text-muted max-w-md mx-auto">
-          The hospitality operating system for Ditch.
+          Powered by GuestIQ
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
           <Link
