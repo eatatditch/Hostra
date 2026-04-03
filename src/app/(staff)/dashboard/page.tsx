@@ -4,10 +4,8 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { format } from "date-fns";
-import { Badge, Button } from "@/components/ui";
-import { ReservationList } from "@/components/dashboard/reservation-list";
-import { WaitlistPanel } from "@/components/dashboard/waitlist-panel";
-import { TableGrid } from "@/components/dashboard/table-grid";
+import { Button } from "@/components/ui";
+import { HostStand } from "@/components/dashboard/host-stand";
 import { useLocation } from "@/components/dashboard/location-provider";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -20,12 +18,10 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { locationId, locationName, isLoading } = useLocation();
+  const { locationId, isLoading } = useLocation();
   const searchParams = useSearchParams();
   const initialDate = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
-  const [selectedDate, setSelectedDate] = useState(
-    initialDate
-  );
+  const [selectedDate, setSelectedDate] = useState(initialDate);
 
   function shiftDate(days: number) {
     const d = new Date(selectedDate + "T00:00:00");
@@ -44,25 +40,21 @@ function DashboardContent() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
+    <div className="p-3 lg:p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold">Host Stand</h1>
-          <p className="text-sm text-text-muted">
+          <h1 className="text-xl font-display font-bold">Host Stand</h1>
+          <p className="text-xs text-text-muted">
             {format(new Date(selectedDate + "T00:00:00"), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => shiftDate(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           {!isToday && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}>
               Today
             </Button>
           )}
@@ -72,16 +64,7 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
-          <ReservationList locationId={locationId} date={selectedDate} />
-        </div>
-        <div className="space-y-6">
-          <WaitlistPanel locationId={locationId} />
-          <TableGrid locationId={locationId} />
-        </div>
-      </div>
+      <HostStand locationId={locationId} date={selectedDate} />
     </div>
   );
 }
