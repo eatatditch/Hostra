@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure, roleProcedure } from "@/lib/trpc/init";
+import { supabase } from "@/lib/db";
 import {
   updateGuestSchema,
   addGuestNoteSchema,
@@ -18,6 +19,31 @@ import {
 } from "@/server/services/guest";
 
 export const guestRouter = router({
+  listAll: protectedProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(200).default(100),
+      offset: z.number().int().min(0).default(0),
+    }).optional())
+    .query(async ({ input }) => {
+      const limit = input?.limit || 100;
+      const offset = input?.offset || 0;
+
+      const { data, error, count } = await supabase
+        .from("guests")
+        .select("*, tags:guest_tags(*), metrics:guest_metrics(*, location:locations(id, name))", { count: "exact" })
+        .order("first_name", { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw new Error(error.message);
+
+      const guests = (data || []).map((g: any) => ({
+        ...g,
+        totalVisitsAllLocations: (g.metrics || []).reduce((s: number, m: any) => s + (m.total_visits || 0), 0),
+      }));
+
+      return { guests, total: count || 0 };
+    }),
+
   search: protectedProcedure
     .input(z.object({ query: z.string().min(1).max(100) }))
     .query(async ({ input }) => {
