@@ -17,8 +17,10 @@ export function HostStand({ locationId, date }: HostStandProps) {
   const [draggingGuest, setDraggingGuest] = useState<{ id: string; type: "reservation" | "waitlist"; name: string; partySize: number } | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<{ id: string; type: "reservation" | "waitlist"; data: any } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showWaitlistAdd, setShowWaitlistAdd] = useState(false);
   const [expandedSection, setExpandedSection] = useState<"upcoming" | "waitlist" | "seated" | "done" | null>("upcoming");
   const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", phone: "", email: "", date, time: "", partySize: 2, specialRequests: "" });
+  const [waitlistForm, setWaitlistForm] = useState({ firstName: "", lastName: "", phone: "", partySize: 2 });
   const [createError, setCreateError] = useState("");
   const floorPlanRef = useRef<HTMLDivElement>(null);
 
@@ -113,6 +115,22 @@ export function HostStand({ locationId, date }: HostStandProps) {
       setCreateForm({ firstName: "", lastName: "", phone: "", email: "", date, time: "", partySize: 2, specialRequests: "" });
       invalidate();
     } catch (e: any) { setCreateError(e.message?.includes("SLOT") ? "Time slot full" : e.message?.includes("DUPLICATE") ? "Already has reservation" : "Failed"); }
+  }
+
+  async function handleAddWaitlist() {
+    try {
+      await joinWaitlistMutation.mutateAsync({
+        locationId,
+        firstName: waitlistForm.firstName,
+        lastName: waitlistForm.lastName || undefined,
+        phone: waitlistForm.phone,
+        partySize: waitlistForm.partySize,
+        source: "staff" as const,
+      });
+      setShowWaitlistAdd(false);
+      setWaitlistForm({ firstName: "", lastName: "", phone: "", partySize: 2 });
+      invalidate();
+    } catch {}
   }
 
   // ── Data grouping ──
@@ -220,6 +238,9 @@ export function HostStand({ locationId, date }: HostStandProps) {
             <div className="flex gap-1">
               <Button size="sm" className="text-[10px] px-2 py-1 h-auto" onClick={() => { setCreateForm({ ...createForm, date }); setShowCreate(true); }}>
                 <Plus className="h-3 w-3" /> Res
+              </Button>
+              <Button size="sm" variant="secondary" className="text-[10px] px-2 py-1 h-auto" onClick={() => setShowWaitlistAdd(true)}>
+                <Plus className="h-3 w-3" /> Wait
               </Button>
             </div>
           </div>
@@ -417,6 +438,26 @@ export function HostStand({ locationId, date }: HostStandProps) {
           </div>
           {createError && <p className="text-xs text-status-error text-center">{createError}</p>}
           <Button type="submit" className="w-full" loading={createResMutation.isPending} disabled={!createForm.time}>Create Reservation</Button>
+        </form>
+      </Modal>
+
+      {/* Add to Waitlist Modal */}
+      <Modal open={showWaitlistAdd} onClose={() => setShowWaitlistAdd(false)} title="Add to Waitlist">
+        <form onSubmit={(e) => { e.preventDefault(); handleAddWaitlist(); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="First Name" value={waitlistForm.firstName} onChange={(e) => setWaitlistForm({ ...waitlistForm, firstName: e.target.value })} required />
+            <Input label="Last Name" value={waitlistForm.lastName} onChange={(e) => setWaitlistForm({ ...waitlistForm, lastName: e.target.value })} />
+          </div>
+          <Input label="Phone" type="tel" value={waitlistForm.phone} onChange={(e) => setWaitlistForm({ ...waitlistForm, phone: e.target.value })} placeholder="(555) 123-4567" required />
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Party Size</label>
+            <div className="flex gap-1 flex-wrap">
+              {[1,2,3,4,5,6,7,8].map((n) => (
+                <button key={n} type="button" onClick={() => setWaitlistForm({ ...waitlistForm, partySize: n })} className={`w-8 h-8 rounded-lg border text-xs font-bold cursor-pointer ${waitlistForm.partySize === n ? "bg-secondary text-white border-secondary" : "bg-white border-border"}`}>{n}</button>
+              ))}
+            </div>
+          </div>
+          <Button type="submit" variant="secondary" className="w-full" loading={joinWaitlistMutation.isPending}>Add to Waitlist</Button>
         </form>
       </Modal>
     </>
