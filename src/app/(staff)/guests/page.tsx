@@ -25,7 +25,7 @@ export default function GuestsPage() {
   const totalCount = query.length === 0 ? allData?.total : guests?.length;
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 h-full flex flex-col">
+    <div className="p-4 lg:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-display font-bold">Guests</h1>
@@ -46,66 +46,57 @@ export default function GuestsPage() {
         />
       </div>
 
-      <Card padding="none" className="flex-1 overflow-hidden">
-        {isLoading ? (
-          <div className="p-4 space-y-3">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-12 bg-surface-alt rounded animate-pulse" />
-            ))}
-          </div>
-        ) : !guests || guests.length === 0 ? (
-          <p className="p-6 text-sm text-text-muted text-center">
-            {query ? "No guests found" : "No guests yet"}
-          </p>
-        ) : (
-          <div className="overflow-y-auto h-full divide-y divide-border">
-            {guests.map((guest: any) => (
-              <Link
-                key={guest.id}
-                href={`/guests/${guest.id}`}
-                className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-alt/50 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <User className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">
-                      {guest.first_name} {guest.last_name}
-                    </p>
-                    <p className="text-xs text-text-muted truncate">
-                      {formatPhone(guest.phone)}
-                      {guest.email && ` · ${guest.email}`}
-                    </p>
-                  </div>
+      {isLoading ? (
+        <div className="space-y-2">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-12 bg-surface-alt rounded-lg animate-pulse" />
+          ))}
+        </div>
+      ) : !guests || guests.length === 0 ? (
+        <p className="text-sm text-text-muted text-center py-8">
+          {query ? "No guests found" : "No guests yet"}
+        </p>
+      ) : (
+        <div className="bg-white rounded-xl border border-border divide-y divide-border">
+          {guests.map((guest: any) => (
+            <Link
+              key={guest.id}
+              href={`/guests/${guest.id}`}
+              className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-alt/50 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <User className="h-4 w-4 text-primary" />
                 </div>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  {guest.tags?.map((t: any) => (
-                    <Badge
-                      key={t.id}
-                      variant={t.tag === "VIP" ? "primary" : "default"}
-                      className="text-[9px]"
-                    >
-                      {t.tag}
-                    </Badge>
-                  ))}
-                  {guest.totalVisitsAllLocations > 0 && (
-                    <span className="text-xs text-text-muted">
-                      {guest.totalVisitsAllLocations} visits
-                    </span>
-                  )}
-                  {(guest.metrics?.length || 0) > 1 && (
-                    <Badge variant="secondary" className="text-[9px]">
-                      <MapPin className="h-2.5 w-2.5" />
-                      {guest.metrics.length}
-                    </Badge>
-                  )}
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">
+                    {guest.first_name} {guest.last_name}
+                  </p>
+                  <p className="text-xs text-text-muted truncate">
+                    {formatPhone(guest.phone)}
+                    {guest.email && ` · ${guest.email}`}
+                  </p>
                 </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </Card>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                {guest.tags?.map((t: any) => (
+                  <Badge key={t.id} variant={t.tag === "VIP" ? "primary" : "default"} className="text-[9px]">
+                    {t.tag}
+                  </Badge>
+                ))}
+                {guest.totalVisitsAllLocations > 0 && (
+                  <span className="text-xs text-text-muted">{guest.totalVisitsAllLocations} visits</span>
+                )}
+                {(guest.metrics?.length || 0) > 1 && (
+                  <Badge variant="secondary" className="text-[9px]">
+                    <MapPin className="h-2.5 w-2.5" /> {guest.metrics.length}
+                  </Badge>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
