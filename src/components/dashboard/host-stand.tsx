@@ -243,6 +243,11 @@ export function HostStand({ locationId, date }: HostStandProps) {
         onDragStart={() => startDrag(id, type, name, partySize)}
         onDragEnd={endDrag}
         onClick={() => selectGuest(id, type, data)}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (type === "reservation" && !isSeated && status !== "no_show" && status !== "cancelled" && status !== "completed") openEditRes(data);
+          else if (type === "waitlist" && (data.status === "waiting" || data.status === "notified")) openEditWait(data);
+        }}
         className={`flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing transition-all text-sm ${isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-surface-alt/50"}`}
       >
         <GripVertical className="h-3.5 w-3.5 text-text-muted/40 shrink-0" />
@@ -265,8 +270,9 @@ export function HostStand({ locationId, date }: HostStandProps) {
         <div className="flex items-center gap-0.5 shrink-0">
           {type === "reservation" && !isSeated && status !== "no_show" && status !== "cancelled" && status !== "completed" && (
             <>
-              <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); openEditRes(data); }} title="Edit">
+              <Button variant="secondary" size="sm" className="text-[11px] px-2 py-1 h-auto gap-1" onClick={(e) => { e.stopPropagation(); openEditRes(data); }} title="Edit reservation">
                 <Pencil className="h-3 w-3" />
+                Edit
               </Button>
               <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleNoShow(id); }}>NS</Button>
               <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleCancel(id); }}>X</Button>
@@ -279,8 +285,9 @@ export function HostStand({ locationId, date }: HostStandProps) {
             <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleUndoNoShow(id); }}>Undo</Button>
           )}
           {type === "waitlist" && (data.status === "waiting" || data.status === "notified") && (
-            <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); openEditWait(data); }} title="Edit">
+            <Button variant="secondary" size="sm" className="text-[11px] px-2 py-1 h-auto gap-1" onClick={(e) => { e.stopPropagation(); openEditWait(data); }} title="Edit entry">
               <Pencil className="h-3 w-3" />
+              Edit
             </Button>
           )}
           {type === "waitlist" && data.status === "waiting" && (
