@@ -1,6 +1,9 @@
 import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
-import type { JoinWaitlistInput } from "@/lib/validators/waitlist";
+import type {
+  JoinWaitlistInput,
+  UpdateWaitlistInput,
+} from "@/lib/validators/waitlist";
 
 const AVG_TURN_TIME_MINUTES = 45;
 
@@ -155,6 +158,38 @@ export async function seatWaitlistEntry(entryId: string, tableId: string) {
 
   // Recalculate positions for remaining entries
   await recalculatePositions(entry.location_id);
+
+  return updated;
+}
+
+export async function updateWaitlistEntry(input: UpdateWaitlistInput) {
+  const { data: entry, error } = await supabase
+    .from("waitlist_entries")
+    .select("*")
+    .eq("id", input.entryId)
+    .single();
+
+  if (error || !entry) throw new Error("NOT_FOUND");
+  if (entry.status !== "waiting" && entry.status !== "notified") {
+    throw new Error("CANNOT_MODIFY");
+  }
+
+  const updateData: Record<string, unknown> = {};
+  if (input.partySize !== undefined) updateData.party_size = input.partySize;
+  if (input.estimatedWaitMinutes !== undefined) {
+    updateData.estimated_wait_minutes = input.estimatedWaitMinutes;
+  }
+
+  if (Object.keys(updateData).length === 0) return entry;
+
+  const { data: updated, error: updateError } = await supabase
+    .from("waitlist_entries")
+    .update(updateData)
+    .eq("id", input.entryId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
 
   return updated;
 }

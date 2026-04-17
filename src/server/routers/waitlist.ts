@@ -5,12 +5,14 @@ import {
   notifyWaitlistSchema,
   seatWaitlistSchema,
   removeWaitlistSchema,
+  updateWaitlistSchema,
 } from "@/lib/validators/waitlist";
 import {
   joinWaitlist,
   notifyWaitlistEntry,
   seatWaitlistEntry,
   removeWaitlistEntry,
+  updateWaitlistEntry,
   getActiveWaitlist,
   getWaitlistByToken,
 } from "@/server/services/waitlist";
@@ -38,6 +40,12 @@ export const waitlistRouter = router({
     .input(removeWaitlistSchema)
     .mutation(async ({ input }) => {
       return removeWaitlistEntry(input.entryId);
+    }),
+
+  update: protectedProcedure
+    .input(updateWaitlistSchema)
+    .mutation(async ({ input }) => {
+      return updateWaitlistEntry(input);
     }),
 
   getActive: protectedProcedure
