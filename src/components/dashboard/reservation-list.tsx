@@ -206,13 +206,26 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
             <div className="space-y-2">
               {statusGroups.upcoming.map((res: any) => (
                 <div key={res.id} className="p-3 rounded-lg border border-border hover:bg-surface-alt/50 transition-colors">
-                  <Link href={`/guests/${res.guest?.id}`} className="block space-y-1 mb-2">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openEdit(res)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(res); } }}
+                    className="block space-y-1 mb-2 cursor-pointer"
+                    title="Edit reservation"
+                  >
                     <div className="flex items-center gap-2">
                       <StatusDot status={res.status} />
                       <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
                         <User className="h-3.5 w-3.5 text-primary" />
                       </div>
-                      <span className="font-semibold">{res.guest?.first_name} {res.guest?.last_name}</span>
+                      <Link
+                        href={`/guests/${res.guest?.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-semibold hover:underline"
+                      >
+                        {res.guest?.first_name} {res.guest?.last_name}
+                      </Link>
                       {res.guest?.tags?.map((t: any) => (
                         <Badge key={t.id} variant={t.tag === "VIP" ? "primary" : "default"}>{t.tag}</Badge>
                       ))}
@@ -227,7 +240,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                         <MessageSquare className="h-3 w-3" />{res.special_requests}
                       </p>
                     )}
-                  </Link>
+                  </div>
                   <div className="flex items-center gap-2 pl-9">
                     {availableTables.length > 0 ? (
                       <select

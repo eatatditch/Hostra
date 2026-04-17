@@ -146,7 +146,21 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                 key={entry.id}
                 className="flex items-start justify-between p-3 rounded-lg border border-border"
               >
-                <Link href={`/guests/${entry.guest?.id}`} className="space-y-1">
+                <div
+                  role={entry.status === "waiting" || entry.status === "notified" ? "button" : undefined}
+                  tabIndex={entry.status === "waiting" || entry.status === "notified" ? 0 : undefined}
+                  onClick={() => {
+                    if (entry.status === "waiting" || entry.status === "notified") openEdit(entry);
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && (entry.status === "waiting" || entry.status === "notified")) {
+                      e.preventDefault();
+                      openEdit(entry);
+                    }
+                  }}
+                  className={`space-y-1 ${entry.status === "waiting" || entry.status === "notified" ? "cursor-pointer" : ""}`}
+                  title={entry.status === "waiting" || entry.status === "notified" ? "Edit entry" : undefined}
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-text-muted">
                       #{entry.position}
@@ -155,9 +169,13 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                       status={entry.status}
                       pulse={entry.status === "notified"}
                     />
-                    <span className="font-medium text-sm">
+                    <Link
+                      href={`/guests/${entry.guest?.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-medium text-sm hover:underline"
+                    >
                       {entry.guest?.first_name} {entry.guest?.last_name}
-                    </span>
+                    </Link>
                     {entry.guest?.tags?.map((t: any) => (
                       <Badge
                         key={t.id}
@@ -176,7 +194,7 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                     )}
                     <span>{formatPhone(entry.guest?.phone || "")}</span>
                   </div>
-                </Link>
+                </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {entry.status === "waiting" && (
                     <Button
