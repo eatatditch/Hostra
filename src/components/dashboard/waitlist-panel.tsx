@@ -14,7 +14,7 @@ import {
   Input,
 } from "@/components/ui";
 import { formatPhone, minutesToHumanReadable } from "@/lib/utils";
-import { Plus, Bell, X, User } from "lucide-react";
+import { Plus, Bell, X, User, Pencil } from "lucide-react";
 
 interface WaitlistPanelProps {
   locationId: string;
@@ -28,6 +28,12 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
     phone: "",
     partySize: 2,
   });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    partySize: 2,
+    estimatedWaitMinutes: 0,
+  });
+  const [editError, setEditError] = useState("");
 
   const { data: entries, isLoading } = trpc.waitlist.getActive.useQuery(
     { locationId },
@@ -40,6 +46,7 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
   const notifyMutation = trpc.waitlist.notify.useMutation();
   const seatMutation = trpc.waitlist.seat.useMutation();
   const removeMutation = trpc.waitlist.remove.useMutation();
+  const updateMutation = trpc.waitlist.update.useMutation();
   const utils = trpc.useUtils();
 
   function invalidate() {
@@ -74,6 +81,34 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
   async function handleRemove(entryId: string) {
     await removeMutation.mutateAsync({ entryId });
     invalidate();
+  }
+
+  function openEdit(entry: any) {
+    setEditingId(entry.id);
+    setEditForm({
+      partySize: entry.party_size,
+      estimatedWaitMinutes: entry.estimated_wait_minutes ?? 0,
+    });
+    setEditError("");
+  }
+
+  async function handleEdit() {
+    if (!editingId) return;
+    setEditError("");
+    try {
+      await updateMutation.mutateAsync({
+        entryId: editingId,
+        partySize: editForm.partySize,
+        estimatedWaitMinutes: editForm.estimatedWaitMinutes,
+      });
+      setEditingId(null);
+      invalidate();
+    } catch (e: any) {
+      const msg = e.message || "";
+      if (msg.includes("CANNOT_MODIFY")) setEditError("This entry can no longer be modified.");
+      else if (msg.includes("NOT_FOUND")) setEditError("Entry not found.");
+      else setEditError("Failed to update waitlist entry. Please try again.");
+    }
   }
 
   const availableTables = tables?.filter((t: any) => t.status === "available") || [];
@@ -111,7 +146,21 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                 key={entry.id}
                 className="flex items-start justify-between p-3 rounded-lg border border-border"
               >
-                <Link href={`/guests/${entry.guest?.id}`} className="space-y-1">
+                <div
+                  role={entry.status === "waiting" || entry.status === "notified" ? "button" : undefined}
+                  tabIndex={entry.status === "waiting" || entry.status === "notified" ? 0 : undefined}
+                  onClick={() => {
+                    if (entry.status === "waiting" || entry.status === "notified") openEdit(entry);
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && (entry.status === "waiting" || entry.status === "notified")) {
+                      e.preventDefault();
+                      openEdit(entry);
+                    }
+                  }}
+                  className={`space-y-1 ${entry.status === "waiting" || entry.status === "notified" ? "cursor-pointer" : ""}`}
+                  title={entry.status === "waiting" || entry.status === "notified" ? "Edit entry" : undefined}
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-text-muted">
                       #{entry.position}
@@ -120,9 +169,13 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                       status={entry.status}
                       pulse={entry.status === "notified"}
                     />
-                    <span className="font-medium text-sm">
+                    <Link
+                      href={`/guests/${entry.guest?.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-medium text-sm hover:underline"
+                    >
                       {entry.guest?.first_name} {entry.guest?.last_name}
-                    </span>
+                    </Link>
                     {entry.guest?.tags?.map((t: any) => (
                       <Badge
                         key={t.id}
@@ -141,7 +194,7 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                     )}
                     <span>{formatPhone(entry.guest?.phone || "")}</span>
                   </div>
-                </Link>
+                </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {entry.status === "waiting" && (
                     <Button
@@ -174,6 +227,16 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
                           ))}
                       </select>
                     )}
+                  {(entry.status === "waiting" || entry.status === "notified") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEdit(entry)}
+                      title="Edit"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -230,6 +293,51 @@ export function WaitlistPanel({ locationId }: WaitlistPanelProps) {
           />
           <Button type="submit" loading={joinMutation.isPending} className="w-full">
             Add to Waitlist
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={!!editingId} onClose={() => setEditingId(null)} title="Edit Waitlist Entry">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleEdit();
+          }}
+          className="space-y-4"
+        >
+          <Input
+            label="Party Size"
+            type="number"
+            min={1}
+            max={20}
+            value={editForm.partySize}
+            onChange={(e) =>
+              setEditForm({ ...editForm, partySize: parseInt(e.target.value) || 1 })
+            }
+            required
+          />
+          <Input
+            label="Estimated Wait (minutes)"
+            type="number"
+            min={0}
+            max={600}
+            value={editForm.estimatedWaitMinutes}
+            onChange={(e) =>
+              setEditForm({
+                ...editForm,
+                estimatedWaitMinutes: parseInt(e.target.value) || 0,
+              })
+            }
+          />
+
+          {editError && (
+            <p className="text-sm text-status-error text-center bg-status-error/5 p-2 rounded">
+              {editError}
+            </p>
+          )}
+
+          <Button type="submit" loading={updateMutation.isPending} className="w-full">
+            Save Changes
           </Button>
         </form>
       </Modal>

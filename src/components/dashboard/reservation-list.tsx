@@ -6,7 +6,7 @@ import { trpc } from "@/lib/trpc/client";
 import { Card, CardHeader, CardTitle, Badge, Button, StatusDot, Modal, Input, Select } from "@/components/ui";
 import { formatPhone, formatTime12h } from "@/lib/utils";
 import { format, addDays } from "date-fns";
-import { Clock, Users, MapPin, MessageSquare, Phone, User, Plus } from "lucide-react";
+import { Clock, Users, MapPin, MessageSquare, Phone, User, Plus, Pencil } from "lucide-react";
 
 interface ReservationListProps {
   locationId: string;
@@ -26,6 +26,14 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
     specialRequests: "",
   });
   const [createError, setCreateError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    date: "",
+    time: "",
+    partySize: 2,
+    specialRequests: "",
+  });
+  const [editError, setEditError] = useState("");
 
   const { data: reservations, isLoading } = trpc.reservation.getByDate.useQuery(
     { locationId, date },
@@ -39,12 +47,18 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
     { enabled: showCreate && !!form.date }
   );
 
+  const { data: editSlots } = trpc.reservation.getAvailability.useQuery(
+    { locationId, date: editForm.date, partySize: editForm.partySize },
+    { enabled: !!editingId && !!editForm.date }
+  );
+
   const seatMutation = trpc.reservation.seat.useMutation();
   const completeMutation = trpc.reservation.complete.useMutation();
   const noShowMutation = trpc.reservation.markNoShow.useMutation();
   const undoNoShowMutation = trpc.reservation.undoNoShow.useMutation();
   const cancelMutation = trpc.reservation.cancel.useMutation();
   const createMutation = trpc.reservation.create.useMutation();
+  const updateMutation = trpc.reservation.update.useMutation();
   const utils = trpc.useUtils();
 
   function invalidate() {
@@ -62,6 +76,52 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
     setForm({ firstName: "", lastName: "", phone: "", email: "", date, time: "", partySize: 2, specialRequests: "" });
     setCreateError("");
     setShowCreate(true);
+  }
+
+  function openEdit(res: any) {
+    setEditingId(res.id);
+    setEditForm({
+      date: res.date,
+      time: (res.time || "").slice(0, 5),
+      partySize: res.party_size,
+      specialRequests: res.special_requests || "",
+    });
+    setEditError("");
+  }
+
+  async function handleEdit() {
+    if (!editingId) return;
+    setEditError("");
+    const original = reservations?.find((r: any) => r.id === editingId);
+    const payload: any = { reservationId: editingId };
+    if (original) {
+      if (editForm.date !== original.date) payload.date = editForm.date;
+      if (editForm.time !== (original.time || "").slice(0, 5)) payload.time = editForm.time;
+      if (editForm.partySize !== original.party_size) payload.partySize = editForm.partySize;
+      if ((editForm.specialRequests || "") !== (original.special_requests || "")) {
+        payload.specialRequests = editForm.specialRequests;
+      }
+    } else {
+      payload.date = editForm.date;
+      payload.time = editForm.time;
+      payload.partySize = editForm.partySize;
+      payload.specialRequests = editForm.specialRequests;
+    }
+    try {
+      await updateMutation.mutateAsync(payload);
+      const newDate = editForm.date;
+      setEditingId(null);
+      invalidate();
+      if (newDate !== date) {
+        utils.reservation.getByDate.invalidate({ locationId, date: newDate });
+      }
+    } catch (e: any) {
+      const msg = e.message || "";
+      if (msg.includes("SLOT_UNAVAILABLE")) setEditError("This time slot is full.");
+      else if (msg.includes("CANNOT_MODIFY")) setEditError("This reservation can no longer be modified.");
+      else if (msg.includes("NOT_FOUND")) setEditError("Reservation not found.");
+      else setEditError(msg || "Failed to update reservation. Please try again.");
+    }
   }
 
   async function handleCreate() {
@@ -146,13 +206,26 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
             <div className="space-y-2">
               {statusGroups.upcoming.map((res: any) => (
                 <div key={res.id} className="p-3 rounded-lg border border-border hover:bg-surface-alt/50 transition-colors">
-                  <Link href={`/guests/${res.guest?.id}`} className="block space-y-1 mb-2">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openEdit(res)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(res); } }}
+                    className="block space-y-1 mb-2 cursor-pointer"
+                    title="Edit reservation"
+                  >
                     <div className="flex items-center gap-2">
                       <StatusDot status={res.status} />
                       <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
                         <User className="h-3.5 w-3.5 text-primary" />
                       </div>
-                      <span className="font-semibold">{res.guest?.first_name} {res.guest?.last_name}</span>
+                      <Link
+                        href={`/guests/${res.guest?.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-semibold hover:underline"
+                      >
+                        {res.guest?.first_name} {res.guest?.last_name}
+                      </Link>
                       {res.guest?.tags?.map((t: any) => (
                         <Badge key={t.id} variant={t.tag === "VIP" ? "primary" : "default"}>{t.tag}</Badge>
                       ))}
@@ -167,7 +240,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                         <MessageSquare className="h-3 w-3" />{res.special_requests}
                       </p>
                     )}
-                  </Link>
+                  </div>
                   <div className="flex items-center gap-2 pl-9">
                     {availableTables.length > 0 ? (
                       <select
@@ -183,6 +256,10 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                     ) : (
                       <span className="text-xs text-text-muted italic">No tables available</span>
                     )}
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(res)} title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleNoShow(res.id)}>No-Show</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleCancel(res.id)}>Cancel</Button>
                   </div>
@@ -295,6 +372,78 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
 
           <Button type="submit" className="w-full" loading={createMutation.isPending} disabled={!form.time}>
             Create Reservation
+          </Button>
+        </form>
+      </Modal>
+
+      {/* Edit Reservation Modal */}
+      <Modal open={!!editingId} onClose={() => setEditingId(null)} title="Edit Reservation">
+        <form onSubmit={(e) => { e.preventDefault(); handleEdit(); }} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Date"
+              type="date"
+              value={editForm.date}
+              min={minDate}
+              max={maxDate}
+              onChange={(e) => setEditForm({ ...editForm, date: e.target.value, time: "" })}
+              required
+            />
+            <div>
+              <label className="block text-sm font-medium text-text mb-1.5">Party Size</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, partySize: n, time: "" })}
+                    className={`w-9 h-9 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${editForm.partySize === n ? "bg-primary text-white border-primary" : "bg-white border-border text-text hover:border-primary"}`}
+                  >{n}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">Time</label>
+            {(() => {
+              const available = editSlots?.filter((s) => s.available) || [];
+              const currentTime = editForm.time;
+              const hasCurrent = available.some((s) => s.time === currentTime);
+              const options = hasCurrent || !currentTime
+                ? available
+                : [{ time: currentTime, available: true }, ...available];
+              if (options.length === 0) {
+                return <p className="text-xs text-text-muted italic py-2">No available times for this date and party size.</p>;
+              }
+              return (
+                <div className="grid grid-cols-4 gap-1.5">
+                  {options.map((slot) => (
+                    <button
+                      key={slot.time}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, time: slot.time })}
+                      className={`py-2 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${editForm.time === slot.time ? "bg-primary text-white border-primary" : "bg-white border-border text-text hover:border-primary"}`}
+                    >{formatTime12h(slot.time)}</button>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          <Input
+            label="Special Requests (optional)"
+            value={editForm.specialRequests}
+            onChange={(e) => setEditForm({ ...editForm, specialRequests: e.target.value })}
+            placeholder="Allergies, celebrations, seating..."
+          />
+
+          {editError && (
+            <p className="text-sm text-status-error text-center bg-status-error/5 p-2 rounded">{editError}</p>
+          )}
+
+          <Button type="submit" className="w-full" loading={updateMutation.isPending} disabled={!editForm.time}>
+            Save Changes
           </Button>
         </form>
       </Modal>

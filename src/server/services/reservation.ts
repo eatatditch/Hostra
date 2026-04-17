@@ -161,19 +161,24 @@ export async function updateReservation(input: UpdateReservationInput) {
   const newTime = input.time || reservation.time;
   const newPartySize = input.partySize || reservation.party_size;
 
-  if (input.date || input.time || input.partySize) {
+  // Normalize HH:MM so "18:00" from input compares equal to "18:00:00" from Postgres
+  const newTimeHM = newTime.slice(0, 5);
+  const currentTimeHM = (reservation.time || "").slice(0, 5);
+  const dateChanged = !!input.date && input.date !== reservation.date;
+  const timeChanged = !!input.time && newTimeHM !== currentTimeHM;
+  const partySizeChanged =
+    !!input.partySize && input.partySize !== reservation.party_size;
+
+  if (dateChanged || timeChanged || partySizeChanged) {
     const slots = await getAvailableSlots({
       locationId: reservation.location_id,
       date: newDate,
       partySize: newPartySize,
     });
-    const targetSlot = slots.find((s) => s.time === newTime.slice(0, 5));
-    // Add back current reservation's covers when checking availability
-    if (
-      targetSlot &&
-      !targetSlot.available &&
-      !(newDate === reservation.date && newTime === reservation.time)
-    ) {
+    const targetSlot = slots.find((s) => s.time === newTimeHM);
+    // Allow keeping the current slot even if it now shows unavailable (this reservation occupies it)
+    const sameSlot = !dateChanged && !timeChanged;
+    if (targetSlot && !targetSlot.available && !sameSlot) {
       throw new Error("SLOT_UNAVAILABLE");
     }
   }

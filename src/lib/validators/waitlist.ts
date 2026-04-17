@@ -22,4 +22,11 @@ export const removeWaitlistSchema = z.object({
   entryId: z.string().min(1),
 });
 
+export const updateWaitlistSchema = z.object({
+  entryId: z.string().min(1),
+  partySize: z.number().int().min(1).max(20).optional(),
+  estimatedWaitMinutes: z.number().int().min(0).max(600).optional(),
+});
+
 export type JoinWaitlistInput = z.infer<typeof joinWaitlistSchema>;
+export type UpdateWaitlistInput = z.infer<typeof updateWaitlistSchema>;
