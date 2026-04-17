@@ -92,14 +92,23 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
   async function handleEdit() {
     if (!editingId) return;
     setEditError("");
+    const original = reservations?.find((r: any) => r.id === editingId);
+    const payload: any = { reservationId: editingId };
+    if (original) {
+      if (editForm.date !== original.date) payload.date = editForm.date;
+      if (editForm.time !== (original.time || "").slice(0, 5)) payload.time = editForm.time;
+      if (editForm.partySize !== original.party_size) payload.partySize = editForm.partySize;
+      if ((editForm.specialRequests || "") !== (original.special_requests || "")) {
+        payload.specialRequests = editForm.specialRequests;
+      }
+    } else {
+      payload.date = editForm.date;
+      payload.time = editForm.time;
+      payload.partySize = editForm.partySize;
+      payload.specialRequests = editForm.specialRequests;
+    }
     try {
-      await updateMutation.mutateAsync({
-        reservationId: editingId,
-        date: editForm.date,
-        time: editForm.time,
-        partySize: editForm.partySize,
-        specialRequests: editForm.specialRequests,
-      });
+      await updateMutation.mutateAsync(payload);
       const newDate = editForm.date;
       setEditingId(null);
       invalidate();
@@ -111,7 +120,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
       if (msg.includes("SLOT_UNAVAILABLE")) setEditError("This time slot is full.");
       else if (msg.includes("CANNOT_MODIFY")) setEditError("This reservation can no longer be modified.");
       else if (msg.includes("NOT_FOUND")) setEditError("Reservation not found.");
-      else setEditError("Failed to update reservation. Please try again.");
+      else setEditError(msg || "Failed to update reservation. Please try again.");
     }
   }
 
