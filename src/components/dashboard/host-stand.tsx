@@ -6,7 +6,7 @@ import { trpc } from "@/lib/trpc/client";
 import { Card, CardHeader, CardTitle, Badge, Button, StatusDot, Modal, Input } from "@/components/ui";
 import { formatPhone, formatTime12h } from "@/lib/utils";
 import { format, addDays } from "date-fns";
-import { Clock, Users, Phone, User, Plus, MessageSquare, MapPin, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import { Clock, Users, Phone, User, Plus, MessageSquare, MapPin, ChevronDown, ChevronUp, GripVertical, Pencil } from "lucide-react";
 
 interface HostStandProps {
   locationId: string;
@@ -22,6 +22,12 @@ export function HostStand({ locationId, date }: HostStandProps) {
   const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", phone: "", email: "", date, time: "", partySize: 2, specialRequests: "" });
   const [waitlistForm, setWaitlistForm] = useState({ firstName: "", lastName: "", phone: "", partySize: 2 });
   const [createError, setCreateError] = useState("");
+  const [editingRes, setEditingRes] = useState<any | null>(null);
+  const [editResForm, setEditResForm] = useState({ date: "", time: "", partySize: 2, specialRequests: "" });
+  const [editResError, setEditResError] = useState("");
+  const [editingWait, setEditingWait] = useState<any | null>(null);
+  const [editWaitForm, setEditWaitForm] = useState({ partySize: 2, estimatedWaitMinutes: 0 });
+  const [editWaitError, setEditWaitError] = useState("");
   const floorPlanRef = useRef<HTMLDivElement>(null);
 
   // Data queries
@@ -30,6 +36,7 @@ export function HostStand({ locationId, date }: HostStandProps) {
   const { data: tables } = trpc.table.getByLocation.useQuery({ locationId }, { refetchInterval: 8000 });
   const { data: floorPlans } = trpc.table.getFloorPlans.useQuery({ locationId });
   const { data: slots } = trpc.reservation.getAvailability.useQuery({ locationId, date: createForm.date, partySize: createForm.partySize }, { enabled: showCreate });
+  const { data: editSlots } = trpc.reservation.getAvailability.useQuery({ locationId, date: editResForm.date, partySize: editResForm.partySize }, { enabled: !!editingRes && !!editResForm.date });
 
   // Mutations
   const seatResMutation = trpc.reservation.seat.useMutation();
@@ -45,6 +52,7 @@ export function HostStand({ locationId, date }: HostStandProps) {
   const updateTableStatusMutation = trpc.table.updateStatus.useMutation();
   // For reassigning table on a seated reservation
   const updateResMutation = trpc.reservation.update.useMutation();
+  const updateWaitlistMutation = trpc.waitlist.update.useMutation();
   const utils = trpc.useUtils();
 
   function invalidate() {
@@ -115,6 +123,71 @@ export function HostStand({ locationId, date }: HostStandProps) {
       setCreateForm({ firstName: "", lastName: "", phone: "", email: "", date, time: "", partySize: 2, specialRequests: "" });
       invalidate();
     } catch (e: any) { setCreateError(e.message?.includes("SLOT") ? "Time slot full" : e.message?.includes("DUPLICATE") ? "Already has reservation" : "Failed"); }
+  }
+
+  function openEditRes(res: any) {
+    setEditingRes(res);
+    setEditResForm({
+      date: res.date,
+      time: (res.time || "").slice(0, 5),
+      partySize: res.party_size,
+      specialRequests: res.special_requests || "",
+    });
+    setEditResError("");
+  }
+
+  async function handleEditRes() {
+    if (!editingRes) return;
+    setEditResError("");
+    const original = editingRes;
+    const payload: any = { reservationId: original.id };
+    if (editResForm.date !== original.date) payload.date = editResForm.date;
+    if (editResForm.time !== (original.time || "").slice(0, 5)) payload.time = editResForm.time;
+    if (editResForm.partySize !== original.party_size) payload.partySize = editResForm.partySize;
+    if ((editResForm.specialRequests || "") !== (original.special_requests || "")) {
+      payload.specialRequests = editResForm.specialRequests;
+    }
+    try {
+      await updateResMutation.mutateAsync(payload);
+      const newDate = editResForm.date;
+      setEditingRes(null);
+      invalidate();
+      if (newDate !== date) utils.reservation.getByDate.invalidate({ locationId, date: newDate });
+    } catch (e: any) {
+      const msg = e.message || "";
+      if (msg.includes("SLOT_UNAVAILABLE")) setEditResError("Time slot is full.");
+      else if (msg.includes("CANNOT_MODIFY")) setEditResError("Reservation can no longer be modified.");
+      else if (msg.includes("NOT_FOUND")) setEditResError("Reservation not found.");
+      else setEditResError(msg || "Failed to update.");
+    }
+  }
+
+  function openEditWait(entry: any) {
+    setEditingWait(entry);
+    setEditWaitForm({
+      partySize: entry.party_size,
+      estimatedWaitMinutes: entry.estimated_wait_minutes ?? 0,
+    });
+    setEditWaitError("");
+  }
+
+  async function handleEditWait() {
+    if (!editingWait) return;
+    setEditWaitError("");
+    try {
+      await updateWaitlistMutation.mutateAsync({
+        entryId: editingWait.id,
+        partySize: editWaitForm.partySize,
+        estimatedWaitMinutes: editWaitForm.estimatedWaitMinutes,
+      });
+      setEditingWait(null);
+      invalidate();
+    } catch (e: any) {
+      const msg = e.message || "";
+      if (msg.includes("CANNOT_MODIFY")) setEditWaitError("Entry can no longer be modified.");
+      else if (msg.includes("NOT_FOUND")) setEditWaitError("Entry not found.");
+      else setEditWaitError(msg || "Failed to update.");
+    }
   }
 
   async function handleAddWaitlist() {
@@ -192,6 +265,9 @@ export function HostStand({ locationId, date }: HostStandProps) {
         <div className="flex items-center gap-0.5 shrink-0">
           {type === "reservation" && !isSeated && status !== "no_show" && status !== "cancelled" && status !== "completed" && (
             <>
+              <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); openEditRes(data); }} title="Edit">
+                <Pencil className="h-3 w-3" />
+              </Button>
               <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleNoShow(id); }}>NS</Button>
               <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleCancel(id); }}>X</Button>
             </>
@@ -201,6 +277,11 @@ export function HostStand({ locationId, date }: HostStandProps) {
           )}
           {type === "reservation" && status === "no_show" && (
             <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleUndoNoShow(id); }}>Undo</Button>
+          )}
+          {type === "waitlist" && (data.status === "waiting" || data.status === "notified") && (
+            <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); openEditWait(data); }} title="Edit">
+              <Pencil className="h-3 w-3" />
+            </Button>
           )}
           {type === "waitlist" && data.status === "waiting" && (
             <Button variant="ghost" size="sm" className="text-[10px] px-1.5 py-0.5 h-auto" onClick={(e) => { e.stopPropagation(); handleNotifyWaitlist(id); }}>Notify</Button>
@@ -458,6 +539,67 @@ export function HostStand({ locationId, date }: HostStandProps) {
             </div>
           </div>
           <Button type="submit" variant="secondary" className="w-full" loading={joinWaitlistMutation.isPending}>Add to Waitlist</Button>
+        </form>
+      </Modal>
+
+      {/* Edit Reservation Modal */}
+      <Modal open={!!editingRes} onClose={() => setEditingRes(null)} title="Edit Reservation">
+        <form onSubmit={(e) => { e.preventDefault(); handleEditRes(); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Date" type="date" value={editResForm.date} min={format(new Date(), "yyyy-MM-dd")} max={format(addDays(new Date(), 30), "yyyy-MM-dd")} onChange={(e) => setEditResForm({ ...editResForm, date: e.target.value, time: "" })} required />
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Party</label>
+              <div className="flex gap-1 flex-wrap">
+                {[1,2,3,4,5,6,7,8].map((n) => (
+                  <button key={n} type="button" onClick={() => setEditResForm({ ...editResForm, partySize: n, time: "" })} className={`w-8 h-8 rounded-lg border text-xs font-bold cursor-pointer ${editResForm.partySize === n ? "bg-primary text-white border-primary" : "bg-white border-border"}`}>{n}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Time</label>
+            {(() => {
+              const available = (editSlots || []).filter((s: any) => s.available);
+              const current = editResForm.time;
+              const hasCurrent = available.some((s: any) => s.time === current);
+              const options = hasCurrent || !current ? available : [{ time: current, available: true }, ...available];
+              if (options.length === 0) return <p className="text-xs text-text-muted italic">No times available</p>;
+              return (
+                <div className="grid grid-cols-4 gap-1">
+                  {options.map((s: any) => (
+                    <button key={s.time} type="button" onClick={() => setEditResForm({ ...editResForm, time: s.time })} className={`py-1.5 rounded-lg border text-xs font-semibold cursor-pointer ${editResForm.time === s.time ? "bg-primary text-white border-primary" : "bg-white border-border"}`}>{formatTime12h(s.time)}</button>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+          <Input label="Special Requests" value={editResForm.specialRequests} onChange={(e) => setEditResForm({ ...editResForm, specialRequests: e.target.value })} placeholder="Allergies, celebrations, seating..." />
+          {editResError && <p className="text-xs text-status-error text-center">{editResError}</p>}
+          <Button type="submit" className="w-full" loading={updateResMutation.isPending} disabled={!editResForm.time}>Save Changes</Button>
+        </form>
+      </Modal>
+
+      {/* Edit Waitlist Modal */}
+      <Modal open={!!editingWait} onClose={() => setEditingWait(null)} title="Edit Waitlist Entry">
+        <form onSubmit={(e) => { e.preventDefault(); handleEditWait(); }} className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Party Size</label>
+            <div className="flex gap-1 flex-wrap">
+              {[1,2,3,4,5,6,7,8].map((n) => (
+                <button key={n} type="button" onClick={() => setEditWaitForm({ ...editWaitForm, partySize: n })} className={`w-8 h-8 rounded-lg border text-xs font-bold cursor-pointer ${editWaitForm.partySize === n ? "bg-secondary text-white border-secondary" : "bg-white border-border"}`}>{n}</button>
+              ))}
+            </div>
+          </div>
+          <Input
+            label="Estimated Wait (minutes)"
+            type="number"
+            min={0}
+            max={600}
+            value={editWaitForm.estimatedWaitMinutes}
+            onChange={(e) => setEditWaitForm({ ...editWaitForm, estimatedWaitMinutes: parseInt(e.target.value) || 0 })}
+          />
+          {editWaitError && <p className="text-xs text-status-error text-center">{editWaitError}</p>}
+          <Button type="submit" variant="secondary" className="w-full" loading={updateWaitlistMutation.isPending}>Save Changes</Button>
         </form>
       </Modal>
     </>
