@@ -2,6 +2,7 @@ import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
 import { getAvailableSlots } from "./availability";
 import { dispatchNotification } from "@/lib/communications/dispatcher";
+import { createPaymentIntent } from "./payment";
 import type {
   CreateReservationInput,
   UpdateReservationInput,
@@ -60,6 +61,20 @@ export async function createReservation(input: CreateReservationInput) {
     throw new Error("DUPLICATE_RESERVATION");
   }
 
+  // Check per-location deposit settings
+  const { data: location } = await supabase
+    .from("locations")
+    .select("deposit_amount_cents, deposit_min_party_size")
+    .eq("id", input.locationId)
+    .single();
+
+  const depositAmount = location?.deposit_amount_cents || 0;
+  const depositMinParty = location?.deposit_min_party_size || 0;
+  const depositRequired =
+    depositAmount > 0 &&
+    depositMinParty > 0 &&
+    input.partySize >= depositMinParty;
+
   const token = generateToken();
 
   const { data: reservation, error: resError } = await supabase
@@ -73,24 +88,55 @@ export async function createReservation(input: CreateReservationInput) {
       source: input.source,
       special_requests: input.specialRequests || null,
       confirmation_token: token,
+      status: depositRequired ? "pending_deposit" : "confirmed",
     })
     .select()
     .single();
 
   if (resError) throw new Error(resError.message);
 
-  // Send confirmation SMS + email (fire and forget)
-  dispatchNotification("reservation_confirmation", {
-    guestId: guest.id,
-    locationId: input.locationId,
-    reservationId: reservation.id,
-    date: input.date,
-    time: input.time,
-    partySize: input.partySize,
-    confirmationToken: token,
-  }, ["sms", "email"]).catch(() => {});
+  let deposit: {
+    clientSecret: string | null;
+    paymentIntentId: string;
+    amountCents: number;
+  } | null = null;
 
-  return { reservation, guest, token };
+  if (depositRequired) {
+    try {
+      const result = await createPaymentIntent({
+        guestId: guest.id,
+        reservationId: reservation.id,
+        amountCents: depositAmount,
+        currency: "usd",
+        type: "deposit",
+        captureMethod: "manual",
+      });
+      deposit = {
+        clientSecret: result.clientSecret,
+        paymentIntentId: result.paymentIntentId,
+        amountCents: depositAmount,
+      };
+    } catch (err) {
+      // Roll the reservation back if we couldn't create the intent
+      await supabase.from("reservations").delete().eq("id", reservation.id);
+      throw err;
+    }
+  } else {
+    // Only send confirmation immediately when no deposit is required.
+    // Deposit reservations are confirmed via the Stripe webhook once the
+    // PaymentIntent is authorized (requires_capture).
+    dispatchNotification("reservation_confirmation", {
+      guestId: guest.id,
+      locationId: input.locationId,
+      reservationId: reservation.id,
+      date: input.date,
+      time: input.time,
+      partySize: input.partySize,
+      confirmationToken: token,
+    }, ["sms", "email"]).catch(() => {});
+  }
+
+  return { reservation, guest, token, deposit };
 }
 
 export async function cancelReservation(
@@ -398,7 +444,9 @@ export async function getReservationsByDate(
 export async function getReservationByToken(token: string) {
   const { data, error } = await supabase
     .from("reservations")
-    .select("*, guest:guests(*), location:locations(*)")
+    .select(
+      "*, guest:guests(*), location:locations(*), payments(id, amount_cents, currency, status, type, created_at)"
+    )
     .eq("confirmation_token", token)
     .single();
 

@@ -109,10 +109,32 @@ export async function syncPaymentStatusByIntent(
   paymentIntentId: string,
   status: string
 ) {
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("payments")
     .update({ status })
-    .eq("stripe_payment_intent_id", paymentIntentId);
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .select("reservation_id, type")
+    .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // No matching payment row — nothing to reconcile.
+    return;
+  }
+
+  // When a deposit PaymentIntent authorizes (requires_capture) or is captured
+  // (succeeded), flip a linked pending_deposit reservation to confirmed.
+  if (
+    updated?.reservation_id &&
+    updated.type === "deposit" &&
+    (status === "requires_capture" || status === "succeeded")
+  ) {
+    await supabase
+      .from("reservations")
+      .update({
+        status: "confirmed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", updated.reservation_id)
+      .eq("status", "pending_deposit");
+  }
 }

@@ -11,7 +11,7 @@ branch names and PR titles); body can be edited freely.
 
 - [x] **Day 1 · pacing-controls** — Cap covers per 15-min slot. Add `pacing_cap_per_slot` (int) to `location_settings`. Enforce in `getAvailableSlots` by counting existing reservations per slot and marking `available: false` when ≥ cap. Settings UI under Settings → Reservations to edit the cap.
 - [x] **Day 2 · stripe-setup** — Add `stripe` SDK. Env scaffolding: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. New `payments` table (id, guest_id, reservation_id, amount_cents, currency, stripe_payment_intent_id, status, type, created_at). New `payment` tRPC router with `createIntent`, `capture`, `refund`. Webhook route at `/api/stripe/webhook` reconciling status.
-- [ ] **Day 3 · reservation-deposits** — Per-location `deposit_amount_cents` and `deposit_min_party_size` settings. Booking flow creates a manual-capture PaymentIntent when party ≥ threshold; reservation blocked until client-side confirm. Show deposit state on reservation detail.
+- [x] **Day 3 · reservation-deposits** — Per-location `deposit_amount_cents` and `deposit_min_party_size` settings. Booking flow creates a manual-capture PaymentIntent when party ≥ threshold; reservation blocked until client-side confirm. Show deposit state on reservation detail.
 - [ ] **Day 4 · no-show-fees** — In `markNoShow`, if there's a linked payment with status `requires_capture`, capture it. Surface captured fee in reservation detail and guest profile.
 - [ ] **Day 5 · cancellation-policy** — Per-location `cancellation_window_hours` and `cancellation_refund_percent`. On `cancelReservation` inside window, refund pending deposit at percent. Expose policy on the guest booking confirmation page.
 

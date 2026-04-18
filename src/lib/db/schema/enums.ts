@@ -1,6 +1,7 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const reservationStatusEnum = pgEnum("reservation_status", [
+  "pending_deposit",
   "confirmed",
   "reminded",
   "seated",
