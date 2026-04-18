@@ -362,6 +362,32 @@ export const communicationTemplates = pgTable(
   ]
 );
 
+// ── Payment ───────────────────────────────────────────────
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    guestId: uuid("guest_id")
+      .notNull()
+      .references(() => guests.id),
+    reservationId: uuid("reservation_id").references(() => reservations.id),
+    amountCents: integer("amount_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("usd"),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", {
+      length: 255,
+    }).notNull(),
+    status: varchar("status", { length: 50 }).notNull(),
+    type: varchar("type", { length: 50 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("payment_guest_idx").on(table.guestId),
+    index("payment_reservation_idx").on(table.reservationId),
+    uniqueIndex("payment_intent_idx").on(table.stripePaymentIntentId),
+  ]
+);
+
 // ── Trigger Event ─────────────────────────────────────────
 
 export const triggerEvents = pgTable(
@@ -546,6 +572,17 @@ export const communicationsRelations = relations(communications, ({ one }) => ({
   location: one(locations, {
     fields: [communications.locationId],
     references: [locations.id],
+  }),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  guest: one(guests, {
+    fields: [payments.guestId],
+    references: [guests.id],
+  }),
+  reservation: one(reservations, {
+    fields: [payments.reservationId],
+    references: [reservations.id],
   }),
 }));
 
