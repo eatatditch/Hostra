@@ -338,13 +338,25 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
             <Input label="Date" type="date" value={form.date} min={minDate} max={maxDate} onChange={(e) => setForm({ ...form, date: e.target.value, time: "" })} required />
             <div>
               <label className="block text-sm font-medium text-text mb-1.5">Party Size</label>
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap mb-1.5">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <button key={n} type="button" onClick={() => setForm({ ...form, partySize: n, time: "" })}
                     className={`w-9 h-9 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${form.partySize === n ? "bg-primary text-white border-primary" : "bg-white border-border text-text hover:border-primary"}`}
                   >{n}</button>
                 ))}
               </div>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={form.partySize}
+                onChange={(e) => {
+                  const v = Math.max(1, parseInt(e.target.value) || 1);
+                  setForm({ ...form, partySize: v, time: "" });
+                }}
+                className="w-full px-2 py-1 text-sm border border-border rounded bg-white"
+                aria-label="Custom party size"
+              />
             </div>
           </div>
 
@@ -391,7 +403,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
             />
             <div>
               <label className="block text-sm font-medium text-text mb-1.5">Party Size</label>
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap mb-1.5">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <button
                     key={n}
@@ -401,6 +413,18 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                   >{n}</button>
                 ))}
               </div>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={editForm.partySize}
+                onChange={(e) => {
+                  const v = Math.max(1, parseInt(e.target.value) || 1);
+                  setEditForm({ ...editForm, partySize: v, time: "" });
+                }}
+                className="w-full px-2 py-1 text-sm border border-border rounded bg-white"
+                aria-label="Custom party size"
+              />
             </div>
           </div>
 

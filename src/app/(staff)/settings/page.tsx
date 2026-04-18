@@ -85,6 +85,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositDollars, setDepositDollars] = useState<number>(25);
   const [depositMinParty, setDepositMinParty] = useState<number>(6);
+  const [maxPartyValue, setMaxPartyValue] = useState<number>(8);
   const [initialized, setInitialized] = useState(false);
 
   if (location && !initialized) {
@@ -99,6 +100,8 @@ function ReservationSettings({ locationId }: { locationId: string }) {
     setDepositEnabled(depositOn);
     setDepositDollars(depositOn ? Math.round(amount / 100) : 25);
     setDepositMinParty(depositOn ? minParty : 6);
+    const maxParty = (location as any).max_booking_party_size;
+    setMaxPartyValue(typeof maxParty === "number" && maxParty > 0 ? maxParty : 8);
     setInitialized(true);
   }
 
@@ -110,6 +113,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
         ? Math.round(depositDollars * 100)
         : null,
       depositMinPartySize: depositEnabled ? depositMinParty : null,
+      maxBookingPartySize: maxPartyValue,
     });
     utils.table.getLocation.invalidate({ locationId });
   }
@@ -204,6 +208,26 @@ function ReservationSettings({ locationId }: { locationId: string }) {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Max booking party size */}
+          <div className="space-y-3 pt-3 border-t border-border">
+            <div className="space-y-1.5">
+              <Input
+                label="Max party size on public booking page"
+                type="number"
+                min={1}
+                max={500}
+                value={maxPartyValue}
+                onChange={(e) =>
+                  setMaxPartyValue(Math.max(1, parseInt(e.target.value) || 1))
+                }
+              />
+              <p className="text-xs text-text-muted">
+                Largest party guests can book online. Staff can still create
+                reservations of any size from the dashboard.
+              </p>
+            </div>
           </div>
 
           <Button size="sm" onClick={handleSave} loading={updateMutation.isPending}>
