@@ -73,6 +73,38 @@ export async function capturePayment(input: CapturePaymentInput) {
   return updated;
 }
 
+export async function captureDepositForNoShow(reservationId: string) {
+  const { data: pending, error } = await supabase
+    .from("payments")
+    .select("id, stripe_payment_intent_id")
+    .eq("reservation_id", reservationId)
+    .eq("type", "deposit")
+    .eq("status", "requires_capture");
+
+  if (error || !pending || pending.length === 0) return [];
+
+  const stripe = getStripe();
+  const captured: Array<{ paymentId: string; status: string }> = [];
+
+  for (const row of pending) {
+    try {
+      const intent = await stripe.paymentIntents.capture(
+        row.stripe_payment_intent_id
+      );
+      await supabase
+        .from("payments")
+        .update({ status: intent.status })
+        .eq("id", row.id);
+      captured.push({ paymentId: row.id, status: intent.status });
+    } catch (err) {
+      // Best-effort: don't fail the no-show flow on Stripe errors.
+      console.error("captureDepositForNoShow failed", row.id, err);
+    }
+  }
+
+  return captured;
+}
+
 export async function refundPayment(input: RefundPaymentInput) {
   const { data: payment, error } = await supabase
     .from("payments")

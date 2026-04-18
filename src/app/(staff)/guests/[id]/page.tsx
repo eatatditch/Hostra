@@ -322,7 +322,11 @@ export default function GuestProfilePage() {
               <p className="text-sm text-text-muted py-2">No reservations</p>
             ) : (
               <div className="space-y-2">
-                {profile.reservations?.map((res: any) => (
+                {profile.reservations?.map((res: any) => {
+                  const capturedDeposit = (res.payments || []).find(
+                    (p: any) => p.type === "deposit" && p.status === "succeeded"
+                  );
+                  return (
                   <div key={res.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 text-sm">
                     <div>
                       <p className="font-medium">
@@ -334,6 +338,11 @@ export default function GuestProfilePage() {
                           <span> · <MapPin className="h-3 w-3 inline" /> {res.location.name}</span>
                         )}
                       </p>
+                      {res.status === "no_show" && capturedDeposit && (
+                        <p className="text-xs text-status-error mt-0.5">
+                          Fee charged: ${(capturedDeposit.amount_cents / 100).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <Badge
                       variant={
@@ -345,7 +354,8 @@ export default function GuestProfilePage() {
                       {res.status.replace("_", " ")}
                     </Badge>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>

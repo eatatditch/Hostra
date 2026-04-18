@@ -52,7 +52,7 @@ export async function getGuestProfile(guestId: string) {
   // Get reservation history across ALL locations for "locations visited"
   const { data: reservationHistory } = await supabase
     .from("reservations")
-    .select("id, location_id, date, time, party_size, status, location:locations(id, name)")
+    .select("id, location_id, date, time, party_size, status, location:locations(id, name), payments(amount_cents, currency, status, type)")
     .eq("guest_id", guestId)
     .order("date", { ascending: false })
     .limit(50);

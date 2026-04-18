@@ -305,7 +305,11 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
               <CardTitle>Done<Badge className="ml-2">{statusGroups.completed.length}</Badge></CardTitle>
             </CardHeader>
             <div className="space-y-1">
-              {statusGroups.completed.map((res: any) => (
+              {statusGroups.completed.map((res: any) => {
+                const capturedDeposit = (res.payments || []).find(
+                  (p: any) => p.type === "deposit" && p.status === "succeeded"
+                );
+                return (
                 <div key={res.id} className="flex items-center justify-between p-2 rounded text-sm text-text-muted hover:bg-surface-alt/50 transition-colors">
                   <Link href={`/guests/${res.guest?.id}`} className="flex items-center gap-2">
                     <StatusDot status={res.status} />
@@ -313,13 +317,19 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                     <span>{formatTime12h(res.time)}</span>
                   </Link>
                   <div className="flex items-center gap-2">
+                    {res.status === "no_show" && capturedDeposit && (
+                      <Badge variant="error">
+                        Fee ${(capturedDeposit.amount_cents / 100).toFixed(2)}
+                      </Badge>
+                    )}
                     <span className="capitalize">{res.status.replace("_", " ")}</span>
                     {res.status === "no_show" && (
                       <Button variant="ghost" size="sm" onClick={() => handleUndoNoShow(res.id)} loading={undoNoShowMutation.isPending}>Undo</Button>
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         )}
