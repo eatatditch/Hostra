@@ -7,7 +7,7 @@ import type {
 } from "@/lib/validators/payment";
 
 export async function createPaymentIntent(input: CreatePaymentIntentInput) {
-  const stripe = getStripe();
+  const stripe = await getStripe();
 
   const intent = await stripe.paymentIntents.create({
     amount: input.amountCents,
@@ -53,7 +53,7 @@ export async function capturePayment(input: CapturePaymentInput) {
 
   if (error || !payment) throw new Error("NOT_FOUND");
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const intent = await stripe.paymentIntents.capture(
     payment.stripe_payment_intent_id,
     input.amountCents
@@ -83,7 +83,7 @@ export async function captureDepositForNoShow(reservationId: string) {
 
   if (error || !pending || pending.length === 0) return [];
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   const captured: Array<{ paymentId: string; status: string }> = [];
 
   for (const row of pending) {
@@ -114,7 +114,7 @@ export async function refundPayment(input: RefundPaymentInput) {
 
   if (error || !payment) throw new Error("NOT_FOUND");
 
-  const stripe = getStripe();
+  const stripe = await getStripe();
   await stripe.refunds.create({
     payment_intent: payment.stripe_payment_intent_id,
     amount: input.amountCents,

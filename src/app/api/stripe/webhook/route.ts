@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, getStripeConfig } from "@/lib/stripe";
 import { syncPaymentStatusByIntent } from "@/server/services/payment";
 
 export async function POST(request: NextRequest) {
   const signature = request.headers.get("stripe-signature");
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const { webhookSecret } = await getStripeConfig();
 
   if (!signature || !webhookSecret) {
     return NextResponse.json(
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    const stripe = getStripe();
+    const stripe = await getStripe();
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid signature";
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
             ? charge.payment_intent
             : charge.payment_intent?.id;
         if (intentId) {
-          const stripe = getStripe();
+          const stripe = await getStripe();
           const intent = await stripe.paymentIntents.retrieve(intentId);
           await syncPaymentStatusByIntent(intent.id, intent.status);
         }

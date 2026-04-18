@@ -62,6 +62,7 @@ export default function SettingsPage() {
 
       <BrandManager />
       <ReservationSettings locationId={locationId} />
+      {userRole === "admin" && <StripePayments />}
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />
       <StaffManager />
@@ -259,6 +260,200 @@ function ReservationSettings({ locationId }: { locationId: string }) {
               <span className="text-xs text-status-success">Saved.</span>
             )}
           </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── Stripe Payments ───────────────────────────────────────
+
+function StripePayments() {
+  const { data: status, isLoading, refetch } = trpc.payment.getStripeStatus.useQuery();
+  const updateMutation = trpc.payment.updateStripeKeys.useMutation();
+
+  const [secretKey, setSecretKey] = useState("");
+  const [publishableKey, setPublishableKey] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  const webhookUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/stripe/webhook`
+      : "/api/stripe/webhook";
+
+  async function handleSave() {
+    setSaveError(null);
+    setSavedAt(null);
+    try {
+      await updateMutation.mutateAsync({
+        secretKey: secretKey || undefined,
+        publishableKey: publishableKey || undefined,
+        webhookSecret: webhookSecret || undefined,
+      });
+      setSecretKey("");
+      setPublishableKey("");
+      setWebhookSecret("");
+      setSavedAt(Date.now());
+      await refetch();
+    } catch (e: any) {
+      setSaveError(e?.message || "Failed to save Stripe settings.");
+    }
+  }
+
+  async function handleTest() {
+    await refetch();
+  }
+
+  function copyWebhookUrl() {
+    navigator.clipboard?.writeText(webhookUrl).catch(() => {});
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Payments (Stripe)</CardTitle>
+          <p className="text-xs text-text-muted mt-0.5">
+            Keys configured here override environment variables. Admin-only.
+          </p>
+        </div>
+      </CardHeader>
+
+      {isLoading ? (
+        <div className="h-24 bg-surface-alt rounded-lg animate-pulse" />
+      ) : (
+        <div className="space-y-5">
+          {/* Connection status */}
+          <div className="rounded-lg border border-border bg-surface-alt p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  status?.connection.ok ? "bg-status-success" : "bg-status-error"
+                }`}
+              />
+              <span className="font-medium">
+                {status?.connection.ok
+                  ? `Connected${status?.connection.mode ? ` (${status.connection.mode} mode)` : ""}`
+                  : "Not connected"}
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleTest}>
+                Re-test
+              </Button>
+            </div>
+            {status?.connection.error && (
+              <p className="text-xs text-status-error">{status.connection.error}</p>
+            )}
+            <dl className="grid grid-cols-3 gap-3 text-xs pt-2">
+              <div>
+                <dt className="text-text-muted">Secret key</dt>
+                <dd className="font-mono">
+                  {status?.secret.masked || "—"}{" "}
+                  {status?.secret.source && (
+                    <Badge variant="default">{status.secret.source}</Badge>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-text-muted">Publishable key</dt>
+                <dd className="font-mono">
+                  {status?.publishable.masked || "—"}{" "}
+                  {status?.publishable.source && (
+                    <Badge variant="default">{status.publishable.source}</Badge>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-text-muted">Webhook secret</dt>
+                <dd className="font-mono">
+                  {status?.webhook.configured ? "set" : "—"}{" "}
+                  {status?.webhook.source && (
+                    <Badge variant="default">{status.webhook.source}</Badge>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* Webhook URL */}
+          <div>
+            <label className="block text-sm font-medium text-text mb-1.5">
+              Webhook endpoint URL
+            </label>
+            <div className="flex gap-2">
+              <Input value={webhookUrl} readOnly />
+              <Button variant="ghost" size="sm" onClick={copyWebhookUrl}>
+                Copy
+              </Button>
+            </div>
+            <p className="text-xs text-text-muted mt-1">
+              In Stripe Dashboard → Developers → Webhooks, add this URL and subscribe
+              to <code className="bg-surface-alt px-1 py-0.5 rounded">payment_intent.*</code>{" "}
+              and <code className="bg-surface-alt px-1 py-0.5 rounded">charge.refunded</code>.
+              Copy the signing secret into the field below.
+            </p>
+          </div>
+
+          {/* Key inputs */}
+          <div className="space-y-3 pt-3 border-t border-border">
+            <p className="text-xs text-text-muted">
+              Leave a field blank to keep the current value. Submitting a value
+              overwrites it; submitting an empty space clears it and falls back
+              to the environment variable.
+            </p>
+            <Input
+              label="Stripe secret key (sk_…)"
+              type="password"
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value)}
+              placeholder={status?.secret.masked || "sk_test_… or sk_live_…"}
+              autoComplete="off"
+            />
+            <Input
+              label="Stripe publishable key (pk_…)"
+              value={publishableKey}
+              onChange={(e) => setPublishableKey(e.target.value)}
+              placeholder={status?.publishable.masked || "pk_test_… or pk_live_…"}
+              autoComplete="off"
+            />
+            <Input
+              label="Webhook signing secret (whsec_…)"
+              type="password"
+              value={webhookSecret}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+              placeholder={status?.webhook.configured ? "(already set)" : "whsec_…"}
+              autoComplete="off"
+            />
+          </div>
+
+          {saveError && (
+            <div className="rounded-lg border border-status-error/30 bg-status-error/5 p-3 text-sm text-status-error whitespace-pre-line">
+              {saveError}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              loading={updateMutation.isPending}
+              disabled={!secretKey && !publishableKey && !webhookSecret}
+            >
+              Save Stripe Keys
+            </Button>
+            {savedAt && !updateMutation.isPending && (
+              <span className="text-xs text-status-success">Saved.</span>
+            )}
+          </div>
+
+          <p className="text-xs text-text-muted">
+            Security: keys are stored in the Supabase <code>platform_settings</code>{" "}
+            table and only readable via the service-role key. For stricter separation,
+            leave these blank and set <code>STRIPE_SECRET_KEY</code>,{" "}
+            <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>, and{" "}
+            <code>STRIPE_WEBHOOK_SECRET</code> as environment variables on your host.
+          </p>
         </div>
       )}
     </Card>

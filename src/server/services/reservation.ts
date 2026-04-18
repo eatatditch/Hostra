@@ -85,7 +85,11 @@ export async function createReservation(input: CreateReservationInput) {
 
   const depositAmount = location?.deposit_amount_cents || 0;
   const depositMinParty = location?.deposit_min_party_size || 0;
+  // Deposits only apply to public-web bookings. Staff, phone, and walk-in
+  // bookings bypass Stripe entirely — staff collect payment in-person when
+  // needed, and these flows must not fail when Stripe isn't configured.
   const depositRequired =
+    input.source === "web" &&
     depositAmount > 0 &&
     depositMinParty > 0 &&
     input.partySize >= depositMinParty;
