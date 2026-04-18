@@ -37,6 +37,7 @@ export const locations = pgTable("locations", {
   phone: varchar("phone", { length: 20 }),
   timezone: varchar("timezone", { length: 50 }).notNull().default("America/New_York"),
   settings: jsonb("settings").default({}),
+  pacingCapPerSlot: integer("pacing_cap_per_slot"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

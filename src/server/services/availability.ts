@@ -26,6 +26,14 @@ export async function getAvailableSlots({
 
   if (blocked && blocked.length > 0) return [];
 
+  // Load location-level pacing cap (covers per slot)
+  const { data: location } = await supabase
+    .from("locations")
+    .select("pacing_cap_per_slot")
+    .eq("id", locationId)
+    .single();
+  const pacingCap: number | null = location?.pacing_cap_per_slot ?? null;
+
   // Get active shifts for this day
   const { data: shifts, error: shiftsError } = await supabase
     .from("service_shifts")
@@ -69,9 +77,15 @@ export async function getAvailableSlots({
 
       const bookedCovers = bookedCoversMap.get(timeStr) || 0;
       const remainingCovers = shift.max_covers - bookedCovers;
-      const available = remainingCovers >= partySize;
 
-      slots.push({ time: timeStr, available, remainingCovers });
+      // Per-slot pacing cap: when set, slot is full once booked covers ≥ cap
+      const slotCapped = pacingCap != null && bookedCovers >= pacingCap;
+      const slotRemaining = pacingCap != null
+        ? Math.max(0, Math.min(remainingCovers, pacingCap - bookedCovers))
+        : remainingCovers;
+      const available = !slotCapped && slotRemaining >= partySize;
+
+      slots.push({ time: timeStr, available, remainingCovers: slotRemaining });
 
       current = addMinutes(current, slotDuration);
     }

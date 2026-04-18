@@ -61,11 +61,91 @@ export default function SettingsPage() {
       </div>
 
       <BrandManager />
+      <ReservationSettings locationId={locationId} />
       <ShiftManager locationId={locationId} />
       <TableManager locationId={locationId} />
       <StaffManager />
       <LocationManager />
     </div>
+  );
+}
+
+// ── Reservation Settings ──────────────────────────────────
+
+function ReservationSettings({ locationId }: { locationId: string }) {
+  const { data: location, isLoading } = trpc.table.getLocation.useQuery(
+    { locationId },
+    { enabled: !!locationId }
+  );
+  const updateMutation = trpc.table.updateReservationSettings.useMutation();
+  const utils = trpc.useUtils();
+
+  const [capEnabled, setCapEnabled] = useState(false);
+  const [capValue, setCapValue] = useState<number>(8);
+  const [initialized, setInitialized] = useState(false);
+
+  if (location && !initialized) {
+    const cap = (location as any).pacing_cap_per_slot;
+    setCapEnabled(typeof cap === "number" && cap > 0);
+    setCapValue(typeof cap === "number" && cap > 0 ? cap : 8);
+    setInitialized(true);
+  }
+
+  async function handleSave() {
+    await updateMutation.mutateAsync({
+      locationId,
+      pacingCapPerSlot: capEnabled ? capValue : null,
+    });
+    utils.table.getLocation.invalidate({ locationId });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Reservations</CardTitle>
+          <p className="text-xs text-text-muted mt-0.5">
+            Pace bookings by capping covers per time slot.
+          </p>
+        </div>
+      </CardHeader>
+      {isLoading ? (
+        <div className="h-16 bg-surface-alt rounded-lg animate-pulse" />
+      ) : (
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={capEnabled}
+              onChange={(e) => setCapEnabled(e.target.checked)}
+              className="rounded"
+            />
+            Enable per-slot pacing cap
+          </label>
+
+          {capEnabled && (
+            <div className="space-y-1.5">
+              <Input
+                label="Max covers per slot"
+                type="number"
+                min={1}
+                max={10000}
+                value={capValue}
+                onChange={(e) => setCapValue(parseInt(e.target.value) || 1)}
+              />
+              <p className="text-xs text-text-muted">
+                Booking is blocked once a slot reaches this many guests, even if
+                the shift's overall max covers hasn't been hit.
+              </p>
+            </div>
+          )}
+
+          <Button size="sm" onClick={handleSave} loading={updateMutation.isPending}>
+            Save Reservation Settings
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
