@@ -1,0 +1,118 @@
+import { supabase } from "@/lib/db";
+import { getStripe } from "@/lib/stripe";
+import type {
+  CreatePaymentIntentInput,
+  CapturePaymentInput,
+  RefundPaymentInput,
+} from "@/lib/validators/payment";
+
+export async function createPaymentIntent(input: CreatePaymentIntentInput) {
+  const stripe = getStripe();
+
+  const intent = await stripe.paymentIntents.create({
+    amount: input.amountCents,
+    currency: input.currency,
+    capture_method: input.captureMethod,
+    metadata: {
+      guest_id: input.guestId,
+      reservation_id: input.reservationId || "",
+      payment_type: input.type,
+      ...(input.metadata || {}),
+    },
+  });
+
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .insert({
+      guest_id: input.guestId,
+      reservation_id: input.reservationId || null,
+      amount_cents: input.amountCents,
+      currency: input.currency,
+      stripe_payment_intent_id: intent.id,
+      status: intent.status,
+      type: input.type,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    payment,
+    clientSecret: intent.client_secret,
+    paymentIntentId: intent.id,
+  };
+}
+
+export async function capturePayment(input: CapturePaymentInput) {
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("id", input.paymentId)
+    .single();
+
+  if (error || !payment) throw new Error("NOT_FOUND");
+
+  const stripe = getStripe();
+  const intent = await stripe.paymentIntents.capture(
+    payment.stripe_payment_intent_id,
+    input.amountCents
+      ? { amount_to_capture: input.amountCents }
+      : undefined
+  );
+
+  const { data: updated, error: updateError } = await supabase
+    .from("payments")
+    .update({ status: intent.status })
+    .eq("id", input.paymentId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  return updated;
+}
+
+export async function refundPayment(input: RefundPaymentInput) {
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("id", input.paymentId)
+    .single();
+
+  if (error || !payment) throw new Error("NOT_FOUND");
+
+  const stripe = getStripe();
+  await stripe.refunds.create({
+    payment_intent: payment.stripe_payment_intent_id,
+    amount: input.amountCents,
+    reason: input.reason,
+  });
+
+  const intent = await stripe.paymentIntents.retrieve(
+    payment.stripe_payment_intent_id
+  );
+
+  const { data: updated, error: updateError } = await supabase
+    .from("payments")
+    .update({ status: intent.status })
+    .eq("id", input.paymentId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  return updated;
+}
+
+export async function syncPaymentStatusByIntent(
+  paymentIntentId: string,
+  status: string
+) {
+  const { error } = await supabase
+    .from("payments")
+    .update({ status })
+    .eq("stripe_payment_intent_id", paymentIntentId);
+
+  if (error) throw new Error(error.message);
+}
