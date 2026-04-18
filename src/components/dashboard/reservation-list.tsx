@@ -173,7 +173,7 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
   const availableSlots = slots?.filter((s) => s.available) || [];
 
   const statusGroups = {
-    upcoming: reservations?.filter((r: any) => r.status === "confirmed" || r.status === "reminded") || [],
+    upcoming: reservations?.filter((r: any) => r.status === "confirmed" || r.status === "reminded" || r.status === "pending_deposit") || [],
     seated: reservations?.filter((r: any) => r.status === "seated") || [],
     completed: reservations?.filter((r: any) => r.status === "completed" || r.status === "no_show" || r.status === "cancelled") || [],
   };
@@ -226,6 +226,9 @@ export function ReservationList({ locationId, date }: ReservationListProps) {
                       >
                         {res.guest?.first_name} {res.guest?.last_name}
                       </Link>
+                      {res.status === "pending_deposit" && (
+                        <Badge variant="default">Awaiting deposit</Badge>
+                      )}
                       {res.guest?.tags?.map((t: any) => (
                         <Badge key={t.id} variant={t.tag === "VIP" ? "primary" : "default"}>{t.tag}</Badge>
                       ))}

@@ -8,18 +8,17 @@ import {
   useElements,
   useStripe,
 } from "@stripe/react-stripe-js";
+import { trpc } from "@/lib/trpc/client";
 
-let stripePromise: Promise<Stripe | null> | null = null;
+const promiseByKey = new Map<string, Promise<Stripe | null>>();
 
-function getStripePromise() {
-  if (stripePromise) return stripePromise;
-  const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-  if (!key) {
-    stripePromise = Promise.resolve(null);
-    return stripePromise;
-  }
-  stripePromise = loadStripe(key);
-  return stripePromise;
+function getStripePromiseFor(key: string | null | undefined) {
+  if (!key) return Promise.resolve(null);
+  const existing = promiseByKey.get(key);
+  if (existing) return existing;
+  const p = loadStripe(key);
+  promiseByKey.set(key, p);
+  return p;
 }
 
 export function DepositPayment({
@@ -33,7 +32,23 @@ export function DepositPayment({
   returnUrl: string;
   onSuccess?: () => void;
 }) {
-  const promise = getStripePromise();
+  const { data: keyData, isLoading } = trpc.payment.getPublishableKey.useQuery();
+  const publishableKey = keyData?.publishableKey ?? null;
+  const promise = getStripePromiseFor(publishableKey);
+
+  if (isLoading) {
+    return (
+      <div className="h-24 bg-surface-alt rounded-lg animate-pulse" />
+    );
+  }
+
+  if (!publishableKey) {
+    return (
+      <div className="rounded-lg border border-status-error/30 bg-status-error/5 p-4 text-sm text-status-error">
+        Stripe is not configured. Ask the restaurant to add a publishable key in Settings → Payments.
+      </div>
+    );
+  }
 
   return (
     <Elements
@@ -44,6 +59,7 @@ export function DepositPayment({
         amountCents={amountCents}
         returnUrl={returnUrl}
         onSuccess={onSuccess}
+        publishableKey={publishableKey}
       />
     </Elements>
   );
@@ -53,10 +69,12 @@ function DepositForm({
   amountCents,
   returnUrl,
   onSuccess,
+  publishableKey,
 }: {
   amountCents: number;
   returnUrl: string;
   onSuccess?: () => void;
+  publishableKey: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -64,12 +82,12 @@ function DepositForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+    if (!publishableKey) {
       setError(
         "Stripe is not configured on this environment. Contact the restaurant."
       );
     }
-  }, []);
+  }, [publishableKey]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

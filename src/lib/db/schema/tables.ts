@@ -391,6 +391,16 @@ export const payments = pgTable(
   ]
 );
 
+// ── Platform Settings (single-row Stripe + global config) ──
+
+export const platformSettings = pgTable("platform_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stripeSecretKey: text("stripe_secret_key"),
+  stripePublishableKey: text("stripe_publishable_key"),
+  stripeWebhookSecret: text("stripe_webhook_secret"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Trigger Event ─────────────────────────────────────────
 
 export const triggerEvents = pgTable(
