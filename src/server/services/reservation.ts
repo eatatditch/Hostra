@@ -2,7 +2,7 @@ import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
 import { getAvailableSlots } from "./availability";
 import { dispatchNotification } from "@/lib/communications/dispatcher";
-import { createPaymentIntent } from "./payment";
+import { createPaymentIntent, captureDepositForNoShow } from "./payment";
 import type {
   CreateReservationInput,
   UpdateReservationInput,
@@ -376,6 +376,12 @@ export async function markNoShow(reservationId: string) {
       .eq("location_id", updated.location_id);
   }
 
+  // Capture any authorized deposit as a no-show fee. Best-effort — failures
+  // here don't block the reservation transition.
+  await captureDepositForNoShow(reservationId).catch((err) => {
+    console.error("markNoShow: capture failed", reservationId, err);
+  });
+
   return updated;
 }
 
@@ -432,7 +438,7 @@ export async function getReservationsByDate(
 ) {
   const { data, error } = await supabase
     .from("reservations")
-    .select("*, guest:guests(*, tags:guest_tags(*)), table:tables(*)")
+    .select("*, guest:guests(*, tags:guest_tags(*)), table:tables(*), payments(id, amount_cents, currency, status, type)")
     .eq("location_id", locationId)
     .eq("date", date)
     .order("time", { ascending: true });
