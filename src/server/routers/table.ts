@@ -241,6 +241,7 @@ export const tableRouter = router({
         address: z.string().optional(),
         phone: z.string().optional(),
         timezone: z.string().optional(),
+        pacingCapPerSlot: z.number().int().min(1).max(10000).nullable().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -250,12 +251,37 @@ export const tableRouter = router({
       if (updateData.address !== undefined) mapped.address = updateData.address || null;
       if (updateData.phone !== undefined) mapped.phone = updateData.phone || null;
       if (updateData.timezone !== undefined) mapped.timezone = updateData.timezone;
+      if (updateData.pacingCapPerSlot !== undefined) mapped.pacing_cap_per_slot = updateData.pacingCapPerSlot;
 
       const { data, error } = await supabase
         .from("locations")
         .update(mapped)
         .eq("id", locationId)
         .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      return data;
+    }),
+
+  // Reservation settings (per-location): pacing cap per slot.
+  // Manager+ can edit pacing; admin retains full updateLocation.
+  updateReservationSettings: roleProcedure("admin", "manager")
+    .input(
+      z.object({
+        locationId: z.string().min(1),
+        pacingCapPerSlot: z.number().int().min(1).max(10000).nullable(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { data, error } = await supabase
+        .from("locations")
+        .update({
+          pacing_cap_per_slot: input.pacingCapPerSlot,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", input.locationId)
+        .select("id, pacing_cap_per_slot")
         .single();
 
       if (error) throw new Error(error.message);
