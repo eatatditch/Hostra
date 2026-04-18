@@ -87,6 +87,8 @@ function ReservationSettings({ locationId }: { locationId: string }) {
   const [depositMinParty, setDepositMinParty] = useState<number>(6);
   const [maxPartyValue, setMaxPartyValue] = useState<number>(8);
   const [initialized, setInitialized] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   if (location && !initialized) {
     const cap = (location as any).pacing_cap_per_slot;
@@ -105,17 +107,36 @@ function ReservationSettings({ locationId }: { locationId: string }) {
     setInitialized(true);
   }
 
+  function dirty() {
+    setSavedAt(null);
+    setSaveError(null);
+  }
+
   async function handleSave() {
-    await updateMutation.mutateAsync({
-      locationId,
-      pacingCapPerSlot: capEnabled ? capValue : null,
-      depositAmountCents: depositEnabled
-        ? Math.round(depositDollars * 100)
-        : null,
-      depositMinPartySize: depositEnabled ? depositMinParty : null,
-      maxBookingPartySize: maxPartyValue,
-    });
-    utils.table.getLocation.invalidate({ locationId });
+    setSaveError(null);
+    setSavedAt(null);
+    try {
+      await updateMutation.mutateAsync({
+        locationId,
+        pacingCapPerSlot: capEnabled ? capValue : null,
+        depositAmountCents: depositEnabled
+          ? Math.round(depositDollars * 100)
+          : null,
+        depositMinPartySize: depositEnabled ? depositMinParty : null,
+        maxBookingPartySize: maxPartyValue,
+      });
+      await utils.table.getLocation.invalidate({ locationId });
+      setSavedAt(Date.now());
+    } catch (e: any) {
+      const raw: string = e?.message || "Failed to save settings.";
+      const missingColumn = /column .* does not exist/i.test(raw)
+        || /could not find .* column/i.test(raw);
+      setSaveError(
+        missingColumn
+          ? `${raw}\n\nThe database is missing one or more reservation-settings columns. Run \`npm run db:push\` (or apply the latest Drizzle migration) against the deployed Supabase project, then try again.`
+          : raw
+      );
+    }
   }
 
   return (
@@ -138,7 +159,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
               <input
                 type="checkbox"
                 checked={capEnabled}
-                onChange={(e) => setCapEnabled(e.target.checked)}
+                onChange={(e) => { setCapEnabled(e.target.checked); dirty(); }}
                 className="rounded"
               />
               Enable per-slot pacing cap
@@ -152,7 +173,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
                   min={1}
                   max={10000}
                   value={capValue}
-                  onChange={(e) => setCapValue(parseInt(e.target.value) || 1)}
+                  onChange={(e) => { setCapValue(parseInt(e.target.value) || 1); dirty(); }}
                 />
                 <p className="text-xs text-text-muted">
                   Booking is blocked once a slot reaches this many guests, even if
@@ -168,7 +189,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
               <input
                 type="checkbox"
                 checked={depositEnabled}
-                onChange={(e) => setDepositEnabled(e.target.checked)}
+                onChange={(e) => { setDepositEnabled(e.target.checked); dirty(); }}
                 className="rounded"
               />
               Require a deposit for large parties
@@ -184,9 +205,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
                     max={100000}
                     step={1}
                     value={depositDollars}
-                    onChange={(e) =>
-                      setDepositDollars(parseInt(e.target.value) || 0)
-                    }
+                    onChange={(e) => { setDepositDollars(parseInt(e.target.value) || 0); dirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -196,9 +215,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
                     min={1}
                     max={50}
                     value={depositMinParty}
-                    onChange={(e) =>
-                      setDepositMinParty(parseInt(e.target.value) || 1)
-                    }
+                    onChange={(e) => { setDepositMinParty(parseInt(e.target.value) || 1); dirty(); }}
                   />
                 </div>
                 <p className="col-span-2 text-xs text-text-muted">
@@ -219,9 +236,7 @@ function ReservationSettings({ locationId }: { locationId: string }) {
                 min={1}
                 max={500}
                 value={maxPartyValue}
-                onChange={(e) =>
-                  setMaxPartyValue(Math.max(1, parseInt(e.target.value) || 1))
-                }
+                onChange={(e) => { setMaxPartyValue(Math.max(1, parseInt(e.target.value) || 1)); dirty(); }}
               />
               <p className="text-xs text-text-muted">
                 Largest party guests can book online. Staff can still create
@@ -230,9 +245,20 @@ function ReservationSettings({ locationId }: { locationId: string }) {
             </div>
           </div>
 
-          <Button size="sm" onClick={handleSave} loading={updateMutation.isPending}>
-            Save Reservation Settings
-          </Button>
+          {saveError && (
+            <div className="rounded-lg border border-status-error/30 bg-status-error/5 p-3 text-sm text-status-error whitespace-pre-line">
+              {saveError}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <Button size="sm" onClick={handleSave} loading={updateMutation.isPending}>
+              Save Reservation Settings
+            </Button>
+            {savedAt && !updateMutation.isPending && (
+              <span className="text-xs text-status-success">Saved.</span>
+            )}
+          </div>
         </div>
       )}
     </Card>

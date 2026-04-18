@@ -277,32 +277,63 @@ export const tableRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
+      // Update each reservation-settings column independently so that a
+      // single missing column (DB out of sync with Drizzle schema — typically
+      // because `npm run db:push` hasn't been run after a schema change)
+      // doesn't block the rest from saving. We surface any missing columns
+      // so the operator knows what migration to run.
+      const updates: Array<{ column: string; value: unknown }> = [];
       if (input.pacingCapPerSlot !== undefined) {
-        patch.pacing_cap_per_slot = input.pacingCapPerSlot;
+        updates.push({ column: "pacing_cap_per_slot", value: input.pacingCapPerSlot });
       }
       if (input.depositAmountCents !== undefined) {
-        patch.deposit_amount_cents = input.depositAmountCents;
+        updates.push({ column: "deposit_amount_cents", value: input.depositAmountCents });
       }
       if (input.depositMinPartySize !== undefined) {
-        patch.deposit_min_party_size = input.depositMinPartySize;
+        updates.push({ column: "deposit_min_party_size", value: input.depositMinPartySize });
       }
       if (input.maxBookingPartySize !== undefined) {
-        patch.max_booking_party_size = input.maxBookingPartySize;
+        updates.push({ column: "max_booking_party_size", value: input.maxBookingPartySize });
       }
 
-      const { data, error } = await supabase
+      const missing: string[] = [];
+      let lastError: string | null = null;
+
+      for (const { column, value } of updates) {
+        const { error } = await supabase
+          .from("locations")
+          .update({ [column]: value, updated_at: new Date().toISOString() })
+          .eq("id", input.locationId);
+        if (error) {
+          const msg = error.message || "";
+          if (
+            /column .* does not exist/i.test(msg) ||
+            /could not find .* column/i.test(msg) ||
+            /schema cache/i.test(msg)
+          ) {
+            missing.push(column);
+          } else {
+            lastError = msg;
+          }
+        }
+      }
+
+      if (lastError) throw new Error(lastError);
+      if (missing.length > 0) {
+        throw new Error(
+          `The following columns are missing from the locations table: ${missing.join(", ")}. Run \`npm run db:push\` against the deployed Supabase project to apply the latest Drizzle schema.`
+        );
+      }
+
+      // Return the updated row. Select * so missing optional columns don't
+      // cause the read to fail.
+      const { data, error: readError } = await supabase
         .from("locations")
-        .update(patch)
+        .select("*")
         .eq("id", input.locationId)
-        .select(
-          "id, pacing_cap_per_slot, deposit_amount_cents, deposit_min_party_size, max_booking_party_size"
-        )
         .single();
 
-      if (error) throw new Error(error.message);
+      if (readError) throw new Error(readError.message);
       return data;
     }),
 
