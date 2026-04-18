@@ -8,7 +8,7 @@ export const createReservationSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
-  partySize: z.number().int().min(1).max(20),
+  partySize: z.number().int().min(1).max(500),
   specialRequests: z.string().max(500).optional(),
   source: z.enum(["web", "phone", "walk_in", "staff"]).default("web"),
 });
@@ -17,7 +17,7 @@ export const updateReservationSchema = z.object({
   reservationId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  partySize: z.number().int().min(1).max(20).optional(),
+  partySize: z.number().int().min(1).max(500).optional(),
   specialRequests: z.string().max(500).optional(),
   tableId: z.string().min(1).nullable().optional(),
 });
@@ -35,7 +35,7 @@ export const seatReservationSchema = z.object({
 export const availabilityQuerySchema = z.object({
   locationId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  partySize: z.number().int().min(1).max(20),
+  partySize: z.number().int().min(1).max(500),
 });
 
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;

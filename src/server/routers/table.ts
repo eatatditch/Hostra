@@ -273,6 +273,7 @@ export const tableRouter = router({
         pacingCapPerSlot: z.number().int().min(1).max(10000).nullable().optional(),
         depositAmountCents: z.number().int().min(0).max(10000000).nullable().optional(),
         depositMinPartySize: z.number().int().min(1).max(50).nullable().optional(),
+        maxBookingPartySize: z.number().int().min(1).max(500).nullable().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -288,13 +289,16 @@ export const tableRouter = router({
       if (input.depositMinPartySize !== undefined) {
         patch.deposit_min_party_size = input.depositMinPartySize;
       }
+      if (input.maxBookingPartySize !== undefined) {
+        patch.max_booking_party_size = input.maxBookingPartySize;
+      }
 
       const { data, error } = await supabase
         .from("locations")
         .update(patch)
         .eq("id", input.locationId)
         .select(
-          "id, pacing_cap_per_slot, deposit_amount_cents, deposit_min_party_size"
+          "id, pacing_cap_per_slot, deposit_amount_cents, deposit_min_party_size, max_booking_party_size"
         )
         .single();
 
@@ -317,7 +321,7 @@ export const tableRouter = router({
   getPublicLocations: publicProcedure.query(async () => {
     const { data, error } = await supabase
       .from("locations")
-      .select("id, name, slug, address, phone")
+      .select("id, name, slug, address, phone, max_booking_party_size")
       .eq("active", true)
       .order("name", { ascending: true });
 

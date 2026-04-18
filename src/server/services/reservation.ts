@@ -61,12 +61,27 @@ export async function createReservation(input: CreateReservationInput) {
     throw new Error("DUPLICATE_RESERVATION");
   }
 
-  // Check per-location deposit settings
+  // Check per-location deposit + booking caps
   const { data: location } = await supabase
     .from("locations")
-    .select("deposit_amount_cents, deposit_min_party_size")
+    .select(
+      "deposit_amount_cents, deposit_min_party_size, max_booking_party_size"
+    )
     .eq("id", input.locationId)
     .single();
+
+  // Enforce public-booking party-size cap. Staff and phone bookings are
+  // not restricted — hosts can always book any party size internally.
+  if (input.source === "web") {
+    const maxBookingParty = (location as any)?.max_booking_party_size;
+    if (
+      typeof maxBookingParty === "number" &&
+      maxBookingParty > 0 &&
+      input.partySize > maxBookingParty
+    ) {
+      throw new Error("PARTY_TOO_LARGE");
+    }
+  }
 
   const depositAmount = location?.deposit_amount_cents || 0;
   const depositMinParty = location?.deposit_min_party_size || 0;

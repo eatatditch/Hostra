@@ -191,13 +191,39 @@ export default function ReservePage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-ditch-charcoal/80 mb-2">How many guests?</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                      <button key={n} type="button" onClick={() => setPartySize(n)}
-                        className={`w-11 h-11 rounded-xl border-2 text-sm font-bold transition-all cursor-pointer ${partySize === n ? "bg-ditch-orange text-white border-ditch-orange shadow-sm scale-105" : "bg-white border-border text-ditch-charcoal hover:border-ditch-orange/40"}`}
-                      >{n}</button>
-                    ))}
-                  </div>
+                  {(() => {
+                    const maxParty = selectedLocation?.max_booking_party_size || 8;
+                    const buttons = Array.from({ length: Math.min(maxParty, 10) }, (_, i) => i + 1);
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex gap-2 flex-wrap">
+                          {buttons.map((n) => (
+                            <button key={n} type="button" onClick={() => setPartySize(n)}
+                              className={`w-11 h-11 rounded-xl border-2 text-sm font-bold transition-all cursor-pointer ${partySize === n ? "bg-ditch-orange text-white border-ditch-orange shadow-sm scale-105" : "bg-white border-border text-ditch-charcoal hover:border-ditch-orange/40"}`}
+                            >{n}</button>
+                          ))}
+                        </div>
+                        {maxParty > 10 && (
+                          <div>
+                            <label className="block text-xs font-semibold text-ditch-charcoal/60 mb-1">Larger party?</label>
+                            <select
+                              value={partySize > 10 ? partySize : ""}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value);
+                                if (!isNaN(v)) setPartySize(v);
+                              }}
+                              className={inputClass}
+                            >
+                              <option value="">Select...</option>
+                              {Array.from({ length: maxParty - 10 }, (_, i) => i + 11).map((n) => (
+                                <option key={n} value={n}>{n} guests</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <button type="submit" className="w-full py-3.5 rounded-xl bg-ditch-orange text-white font-semibold text-lg hover:bg-ditch-orange-dark transition-colors shadow-sm cursor-pointer">
                   Find Available Times
@@ -264,6 +290,7 @@ export default function ReservePage() {
                   <p className="text-sm text-status-error text-center bg-status-error/5 p-2 rounded-xl">
                     {createMutation.error.message === "SLOT_UNAVAILABLE" ? "This time slot is no longer available."
                       : createMutation.error.message === "DUPLICATE_RESERVATION" ? "You already have a reservation for this date."
+                      : createMutation.error.message === "PARTY_TOO_LARGE" ? "Please call us to book a party this large."
                       : "Something went wrong. Please try again."}
                   </p>
                 )}
