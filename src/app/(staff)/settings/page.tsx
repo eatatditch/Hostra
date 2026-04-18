@@ -82,12 +82,23 @@ function ReservationSettings({ locationId }: { locationId: string }) {
 
   const [capEnabled, setCapEnabled] = useState(false);
   const [capValue, setCapValue] = useState<number>(8);
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositDollars, setDepositDollars] = useState<number>(25);
+  const [depositMinParty, setDepositMinParty] = useState<number>(6);
   const [initialized, setInitialized] = useState(false);
 
   if (location && !initialized) {
     const cap = (location as any).pacing_cap_per_slot;
     setCapEnabled(typeof cap === "number" && cap > 0);
     setCapValue(typeof cap === "number" && cap > 0 ? cap : 8);
+    const amount = (location as any).deposit_amount_cents;
+    const minParty = (location as any).deposit_min_party_size;
+    const depositOn =
+      typeof amount === "number" && amount > 0 &&
+      typeof minParty === "number" && minParty > 0;
+    setDepositEnabled(depositOn);
+    setDepositDollars(depositOn ? Math.round(amount / 100) : 25);
+    setDepositMinParty(depositOn ? minParty : 6);
     setInitialized(true);
   }
 
@@ -95,6 +106,10 @@ function ReservationSettings({ locationId }: { locationId: string }) {
     await updateMutation.mutateAsync({
       locationId,
       pacingCapPerSlot: capEnabled ? capValue : null,
+      depositAmountCents: depositEnabled
+        ? Math.round(depositDollars * 100)
+        : null,
+      depositMinPartySize: depositEnabled ? depositMinParty : null,
     });
     utils.table.getLocation.invalidate({ locationId });
   }
@@ -105,40 +120,91 @@ function ReservationSettings({ locationId }: { locationId: string }) {
         <div>
           <CardTitle>Reservations</CardTitle>
           <p className="text-xs text-text-muted mt-0.5">
-            Pace bookings by capping covers per time slot.
+            Pace bookings per slot and require deposits on large parties.
           </p>
         </div>
       </CardHeader>
       {isLoading ? (
         <div className="h-16 bg-surface-alt rounded-lg animate-pulse" />
       ) : (
-        <div className="space-y-4">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={capEnabled}
-              onChange={(e) => setCapEnabled(e.target.checked)}
-              className="rounded"
-            />
-            Enable per-slot pacing cap
-          </label>
-
-          {capEnabled && (
-            <div className="space-y-1.5">
-              <Input
-                label="Max covers per slot"
-                type="number"
-                min={1}
-                max={10000}
-                value={capValue}
-                onChange={(e) => setCapValue(parseInt(e.target.value) || 1)}
+        <div className="space-y-6">
+          {/* Pacing */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={capEnabled}
+                onChange={(e) => setCapEnabled(e.target.checked)}
+                className="rounded"
               />
-              <p className="text-xs text-text-muted">
-                Booking is blocked once a slot reaches this many guests, even if
-                the shift's overall max covers hasn't been hit.
-              </p>
-            </div>
-          )}
+              Enable per-slot pacing cap
+            </label>
+
+            {capEnabled && (
+              <div className="space-y-1.5">
+                <Input
+                  label="Max covers per slot"
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={capValue}
+                  onChange={(e) => setCapValue(parseInt(e.target.value) || 1)}
+                />
+                <p className="text-xs text-text-muted">
+                  Booking is blocked once a slot reaches this many guests, even if
+                  the shift's overall max covers hasn't been hit.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Deposits */}
+          <div className="space-y-3 pt-3 border-t border-border">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={depositEnabled}
+                onChange={(e) => setDepositEnabled(e.target.checked)}
+                className="rounded"
+              />
+              Require a deposit for large parties
+            </label>
+
+            {depositEnabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Input
+                    label="Deposit amount (USD)"
+                    type="number"
+                    min={1}
+                    max={100000}
+                    step={1}
+                    value={depositDollars}
+                    onChange={(e) =>
+                      setDepositDollars(parseInt(e.target.value) || 0)
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Input
+                    label="Minimum party size"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={depositMinParty}
+                    onChange={(e) =>
+                      setDepositMinParty(parseInt(e.target.value) || 1)
+                    }
+                  />
+                </div>
+                <p className="col-span-2 text-xs text-text-muted">
+                  Parties at or above this size must authorize a card at booking.
+                  The charge is held (not captured) until you mark a no-show or
+                  cancel inside the cancellation window.
+                </p>
+              </div>
+            )}
+          </div>
 
           <Button size="sm" onClick={handleSave} loading={updateMutation.isPending}>
             Save Reservation Settings

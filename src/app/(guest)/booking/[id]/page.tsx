@@ -7,6 +7,44 @@ import { formatTime12h } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar, Clock, Users, MapPin, Phone } from "lucide-react";
 
+function DepositStatus({ payments }: { payments?: Array<{
+  id: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  type: string;
+}> | null }) {
+  const deposit = payments?.find((p) => p.type === "deposit");
+  if (!deposit) return null;
+
+  const dollars = (deposit.amount_cents / 100).toFixed(2);
+  const map: Record<string, { label: string; tone: string }> = {
+    requires_payment_method: { label: "Awaiting card", tone: "text-status-warning" },
+    requires_confirmation: { label: "Awaiting confirmation", tone: "text-status-warning" },
+    requires_action: { label: "Action required", tone: "text-status-warning" },
+    processing: { label: "Processing", tone: "text-text-muted" },
+    requires_capture: { label: "Card on file", tone: "text-status-success" },
+    succeeded: { label: "Charged", tone: "text-status-success" },
+    canceled: { label: "Cancelled", tone: "text-text-muted" },
+  };
+  const { label, tone } = map[deposit.status] || {
+    label: deposit.status.replace(/_/g, " "),
+    tone: "text-text-muted",
+  };
+
+  return (
+    <div className="text-sm border-t border-border pt-4">
+      <p className="font-medium mb-1">Deposit</p>
+      <div className="flex items-center justify-between">
+        <span className="text-text-muted">
+          ${dollars} {deposit.currency.toUpperCase()}
+        </span>
+        <span className={`capitalize ${tone}`}>{label}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function BookingDetailPage() {
   const { id: token } = useParams<{ id: string }>();
 
@@ -145,6 +183,8 @@ export default function BookingDetailPage() {
               <p className="text-text-muted">{reservation.special_requests}</p>
             </div>
           )}
+
+          <DepositStatus payments={(reservation as any).payments} />
 
           {isCancellable && (
             <Button

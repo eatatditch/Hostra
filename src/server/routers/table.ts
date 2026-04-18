@@ -270,18 +270,32 @@ export const tableRouter = router({
     .input(
       z.object({
         locationId: z.string().min(1),
-        pacingCapPerSlot: z.number().int().min(1).max(10000).nullable(),
+        pacingCapPerSlot: z.number().int().min(1).max(10000).nullable().optional(),
+        depositAmountCents: z.number().int().min(0).max(10000000).nullable().optional(),
+        depositMinPartySize: z.number().int().min(1).max(50).nullable().optional(),
       })
     )
     .mutation(async ({ input }) => {
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (input.pacingCapPerSlot !== undefined) {
+        patch.pacing_cap_per_slot = input.pacingCapPerSlot;
+      }
+      if (input.depositAmountCents !== undefined) {
+        patch.deposit_amount_cents = input.depositAmountCents;
+      }
+      if (input.depositMinPartySize !== undefined) {
+        patch.deposit_min_party_size = input.depositMinPartySize;
+      }
+
       const { data, error } = await supabase
         .from("locations")
-        .update({
-          pacing_cap_per_slot: input.pacingCapPerSlot,
-          updated_at: new Date().toISOString(),
-        })
+        .update(patch)
         .eq("id", input.locationId)
-        .select("id, pacing_cap_per_slot")
+        .select(
+          "id, pacing_cap_per_slot, deposit_amount_cents, deposit_min_party_size"
+        )
         .single();
 
       if (error) throw new Error(error.message);

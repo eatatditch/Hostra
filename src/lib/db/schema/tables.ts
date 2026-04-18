@@ -38,6 +38,8 @@ export const locations = pgTable("locations", {
   timezone: varchar("timezone", { length: 50 }).notNull().default("America/New_York"),
   settings: jsonb("settings").default({}),
   pacingCapPerSlot: integer("pacing_cap_per_slot"),
+  depositAmountCents: integer("deposit_amount_cents"),
+  depositMinPartySize: integer("deposit_min_party_size"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

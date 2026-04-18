@@ -6,8 +6,9 @@ import { formatTime12h } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import { Calendar, Clock, Users, Check, MapPin, Phone, Globe, Navigation, Waves } from "lucide-react";
 import { HostOSLogo } from "@/components/ui";
+import { DepositPayment } from "@/components/shared/deposit-payment";
 
-type Step = "location" | "details" | "time" | "confirm" | "done";
+type Step = "location" | "details" | "time" | "confirm" | "deposit" | "done";
 
 function TopWaves() {
   return (
@@ -72,6 +73,10 @@ export default function ReservePage() {
   const [email, setEmail] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
   const [confirmationToken, setConfirmationToken] = useState("");
+  const [depositInfo, setDepositInfo] = useState<{
+    clientSecret: string;
+    amountCents: number;
+  } | null>(null);
 
   const { data: brand } = trpc.table.getBrandSettings.useQuery();
   const { data: publicLocations, isLoading: locationsLoading } =
@@ -94,7 +99,15 @@ export default function ReservePage() {
       specialRequests: specialRequests || undefined,
     });
     setConfirmationToken(result.token);
-    setStep("done");
+    if (result.deposit?.clientSecret) {
+      setDepositInfo({
+        clientSecret: result.deposit.clientSecret,
+        amountCents: result.deposit.amountCents,
+      });
+      setStep("deposit");
+    } else {
+      setStep("done");
+    }
   }
 
   const minDate = format(new Date(), "yyyy-MM-dd");
@@ -258,6 +271,32 @@ export default function ReservePage() {
                   {createMutation.isPending ? "Confirming..." : "Confirm Reservation"}
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* Step: Deposit */}
+          {step === "deposit" && depositInfo && (
+            <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-5">
+              <div className="bg-ditch-blue/5 rounded-xl p-4 space-y-2">
+                <div className="font-display font-semibold text-ditch-charcoal flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-ditch-blue" /> {locationName}
+                </div>
+                <div className="flex flex-wrap gap-3 text-sm text-ditch-blue-dark/60">
+                  <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {format(new Date(date + "T00:00:00"), "EEEE, MMM d")}</span>
+                  <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {formatTime12h(selectedTime)}</span>
+                  <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {partySize} {partySize === 1 ? "guest" : "guests"}</span>
+                </div>
+              </div>
+              <h3 className="font-display text-ditch-charcoal text-lg">Authorize your deposit</h3>
+              <p className="text-xs text-text-muted">
+                Parties of {partySize} require a card hold to confirm. Your reservation is not finalized until this step completes.
+              </p>
+              <DepositPayment
+                clientSecret={depositInfo.clientSecret}
+                amountCents={depositInfo.amountCents}
+                returnUrl={typeof window !== "undefined" ? `${window.location.origin}/booking/${confirmationToken}` : "/"}
+                onSuccess={() => setStep("done")}
+              />
             </div>
           )}
 
