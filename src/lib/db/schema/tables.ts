@@ -41,6 +41,8 @@ export const locations = pgTable("locations", {
   depositAmountCents: integer("deposit_amount_cents"),
   depositMinPartySize: integer("deposit_min_party_size"),
   maxBookingPartySize: integer("max_booking_party_size"),
+  cancellationWindowHours: integer("cancellation_window_hours"),
+  cancellationRefundPercent: integer("cancellation_refund_percent"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

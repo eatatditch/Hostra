@@ -87,6 +87,9 @@ function ReservationSettings({ locationId }: { locationId: string }) {
   const [depositDollars, setDepositDollars] = useState<number>(25);
   const [depositMinParty, setDepositMinParty] = useState<number>(6);
   const [maxPartyValue, setMaxPartyValue] = useState<number>(8);
+  const [cancellationEnabled, setCancellationEnabled] = useState(false);
+  const [cancellationWindowHours, setCancellationWindowHours] = useState<number>(24);
+  const [cancellationRefundPercent, setCancellationRefundPercent] = useState<number>(0);
   const [initialized, setInitialized] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -105,6 +108,17 @@ function ReservationSettings({ locationId }: { locationId: string }) {
     setDepositMinParty(depositOn ? minParty : 6);
     const maxParty = (location as any).max_booking_party_size;
     setMaxPartyValue(typeof maxParty === "number" && maxParty > 0 ? maxParty : 8);
+    const cancelHours = (location as any).cancellation_window_hours;
+    const cancelPct = (location as any).cancellation_refund_percent;
+    const cancelOn =
+      typeof cancelHours === "number" && cancelHours > 0;
+    setCancellationEnabled(cancelOn);
+    setCancellationWindowHours(cancelOn ? cancelHours : 24);
+    setCancellationRefundPercent(
+      typeof cancelPct === "number" && cancelPct >= 0 && cancelPct <= 100
+        ? cancelPct
+        : 0
+    );
     setInitialized(true);
   }
 
@@ -125,6 +139,12 @@ function ReservationSettings({ locationId }: { locationId: string }) {
           : null,
         depositMinPartySize: depositEnabled ? depositMinParty : null,
         maxBookingPartySize: maxPartyValue,
+        cancellationWindowHours: cancellationEnabled
+          ? cancellationWindowHours
+          : null,
+        cancellationRefundPercent: cancellationEnabled
+          ? cancellationRefundPercent
+          : null,
       });
       await utils.table.getLocation.invalidate({ locationId });
       setSavedAt(Date.now());
@@ -244,6 +264,50 @@ function ReservationSettings({ locationId }: { locationId: string }) {
                 reservations of any size from the dashboard.
               </p>
             </div>
+          </div>
+
+          {/* Cancellation policy */}
+          <div className="space-y-3 pt-3 border-t border-border">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cancellationEnabled}
+                onChange={(e) => { setCancellationEnabled(e.target.checked); dirty(); }}
+                className="rounded"
+              />
+              Enforce a cancellation policy
+            </label>
+
+            {cancellationEnabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Input
+                    label="Window (hours before reservation)"
+                    type="number"
+                    min={1}
+                    max={720}
+                    value={cancellationWindowHours}
+                    onChange={(e) => { setCancellationWindowHours(Math.max(1, parseInt(e.target.value) || 1)); dirty(); }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Input
+                    label="Refund % inside window"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={cancellationRefundPercent}
+                    onChange={(e) => { setCancellationRefundPercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0))); dirty(); }}
+                  />
+                </div>
+                <p className="col-span-2 text-xs text-text-muted">
+                  Cancellations made at least this many hours before the
+                  reservation get a full deposit refund. Inside the window,
+                  only this percentage is refunded (0% keeps the entire
+                  deposit as a cancellation fee).
+                </p>
+              </div>
+            )}
           </div>
 
           {saveError && (
