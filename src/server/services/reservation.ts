@@ -2,7 +2,11 @@ import { supabase } from "@/lib/db";
 import { generateToken, normalizePhone } from "@/lib/utils";
 import { getAvailableSlots } from "./availability";
 import { dispatchNotification } from "@/lib/communications/dispatcher";
-import { createPaymentIntent, captureDepositForNoShow } from "./payment";
+import {
+  createPaymentIntent,
+  captureDepositForNoShow,
+  refundDepositForCancellation,
+} from "./payment";
 import type {
   CreateReservationInput,
   UpdateReservationInput,
@@ -183,6 +187,37 @@ export async function cancelReservation(
     throw new Error("CANNOT_CANCEL");
   }
 
+  // Compute refund percent from the location's cancellation policy. If the
+  // cancellation happens before the window, the guest gets a full refund;
+  // inside the window, the configured partial refund percent applies.
+  const { data: location } = await supabase
+    .from("locations")
+    .select("cancellation_window_hours, cancellation_refund_percent, timezone")
+    .eq("id", reservation.location_id)
+    .single();
+
+  const windowHours = (location as any)?.cancellation_window_hours;
+  const refundPercentSetting = (location as any)?.cancellation_refund_percent;
+
+  let refundPercent = 100;
+  if (typeof windowHours === "number" && windowHours > 0) {
+    const tz = (location as any)?.timezone || "America/New_York";
+    const reservationAtMs = wallClockToUtcMs(
+      reservation.date,
+      reservation.time,
+      tz
+    );
+    const hoursUntil = (reservationAtMs - Date.now()) / (60 * 60 * 1000);
+    if (hoursUntil < windowHours) {
+      refundPercent =
+        typeof refundPercentSetting === "number" &&
+        refundPercentSetting >= 0 &&
+        refundPercentSetting <= 100
+          ? refundPercentSetting
+          : 0;
+    }
+  }
+
   const { data: updated, error: updateError } = await supabase
     .from("reservations")
     .update({
@@ -195,6 +230,14 @@ export async function cancelReservation(
     .single();
 
   if (updateError) throw new Error(updateError.message);
+
+  // Apply the deposit refund if one exists. Best-effort — Stripe failures
+  // must not block the cancellation from persisting.
+  await refundDepositForCancellation(reservationId, refundPercent).catch(
+    (err) => {
+      console.error("cancelReservation: refund failed", reservationId, err);
+    }
+  );
 
   // Send cancellation notification
   dispatchNotification("reservation_cancelled", {
@@ -477,6 +520,43 @@ export async function getReservationByToken(token: string) {
 
   if (error) return null;
   return data;
+}
+
+// Given a wall-clock date/time in a named IANA timezone, return the UTC ms
+// epoch for that moment. Uses Intl to resolve the tz's offset on that date,
+// which correctly handles DST transitions.
+function wallClockToUtcMs(
+  dateStr: string,
+  timeStr: string | null | undefined,
+  tz: string
+): number {
+  const t = (timeStr || "00:00:00").slice(0, 8);
+  const naiveUtcMs = Date.parse(`${dateStr}T${t}Z`);
+  if (Number.isNaN(naiveUtcMs)) return Date.now();
+
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts = dtf.formatToParts(new Date(naiveUtcMs));
+  const find = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  const tzUtcMs = Date.UTC(
+    find("year"),
+    find("month") - 1,
+    find("day"),
+    find("hour"),
+    find("minute"),
+    find("second")
+  );
+  const offsetMs = tzUtcMs - naiveUtcMs;
+  return naiveUtcMs - offsetMs;
 }
 
 async function updateGuestMetrics(guestId: string, locationId: string) {

@@ -274,6 +274,8 @@ export const tableRouter = router({
         depositAmountCents: z.number().int().min(0).max(10000000).nullable().optional(),
         depositMinPartySize: z.number().int().min(1).max(50).nullable().optional(),
         maxBookingPartySize: z.number().int().min(1).max(500).nullable().optional(),
+        cancellationWindowHours: z.number().int().min(0).max(720).nullable().optional(),
+        cancellationRefundPercent: z.number().int().min(0).max(100).nullable().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -294,6 +296,12 @@ export const tableRouter = router({
       }
       if (input.maxBookingPartySize !== undefined) {
         updates.push({ column: "max_booking_party_size", value: input.maxBookingPartySize });
+      }
+      if (input.cancellationWindowHours !== undefined) {
+        updates.push({ column: "cancellation_window_hours", value: input.cancellationWindowHours });
+      }
+      if (input.cancellationRefundPercent !== undefined) {
+        updates.push({ column: "cancellation_refund_percent", value: input.cancellationRefundPercent });
       }
 
       const missing: string[] = [];

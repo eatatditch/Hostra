@@ -5,7 +5,54 @@ import { trpc } from "@/lib/trpc/client";
 import { Card, Button, Badge, StatusDot } from "@/components/ui";
 import { formatTime12h } from "@/lib/utils";
 import { format } from "date-fns";
-import { Calendar, Clock, Users, MapPin, Phone } from "lucide-react";
+import { Calendar, Clock, Users, MapPin, Phone, Info } from "lucide-react";
+
+function CancellationPolicy({
+  reservation,
+}: {
+  reservation: {
+    date: string;
+    time: string;
+    location?: {
+      cancellation_window_hours?: number | null;
+      cancellation_refund_percent?: number | null;
+    } | null;
+    payments?: Array<{ type: string; amount_cents: number }> | null;
+  };
+}) {
+  const hours = reservation.location?.cancellation_window_hours;
+  const pct = reservation.location?.cancellation_refund_percent;
+  if (typeof hours !== "number" || hours <= 0) return null;
+
+  const refundPct =
+    typeof pct === "number" && pct >= 0 && pct <= 100 ? pct : 0;
+  const deposit = reservation.payments?.find((p) => p.type === "deposit");
+  const depositAmount = deposit ? (deposit.amount_cents / 100).toFixed(2) : null;
+
+  return (
+    <div className="text-sm border-t border-border pt-4 space-y-1.5">
+      <p className="flex items-center gap-1.5 font-medium">
+        <Info className="h-4 w-4 text-text-muted" />
+        Cancellation Policy
+      </p>
+      <p className="text-text-muted leading-relaxed">
+        Cancel at least <strong>{hours} hour{hours === 1 ? "" : "s"}</strong>{" "}
+        before your reservation for a full refund
+        {depositAmount ? ` of your $${depositAmount} deposit` : ""}.{" "}
+        {refundPct > 0 ? (
+          <>
+            Cancellations inside the window are refunded at{" "}
+            <strong>{refundPct}%</strong>.
+          </>
+        ) : (
+          <>
+            Cancellations inside the window forfeit the deposit in full.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
 
 function DepositStatus({ payments }: { payments?: Array<{
   id: string;
@@ -185,6 +232,8 @@ export default function BookingDetailPage() {
           )}
 
           <DepositStatus payments={(reservation as any).payments} />
+
+          <CancellationPolicy reservation={reservation as any} />
 
           {isCancellable && (
             <Button

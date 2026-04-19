@@ -105,6 +105,83 @@ export async function captureDepositForNoShow(reservationId: string) {
   return captured;
 }
 
+export async function refundDepositForCancellation(
+  reservationId: string,
+  refundPercent: number
+) {
+  const clamped = Math.max(0, Math.min(100, Math.floor(refundPercent)));
+  if (clamped === 0) return [];
+
+  const { data: deposits, error } = await supabase
+    .from("payments")
+    .select("id, stripe_payment_intent_id, amount_cents, status")
+    .eq("reservation_id", reservationId)
+    .eq("type", "deposit")
+    .in("status", ["requires_capture", "succeeded"]);
+
+  if (error || !deposits || deposits.length === 0) return [];
+
+  const stripe = await getStripe();
+  const results: Array<{ paymentId: string; status: string }> = [];
+
+  for (const row of deposits) {
+    const refundAmount = Math.round((row.amount_cents * clamped) / 100);
+    if (refundAmount <= 0) continue;
+
+    try {
+      if (row.status === "requires_capture") {
+        if (clamped >= 100) {
+          // Full refund before capture — cancel the authorization outright.
+          const intent = await stripe.paymentIntents.cancel(
+            row.stripe_payment_intent_id
+          );
+          await supabase
+            .from("payments")
+            .update({ status: intent.status })
+            .eq("id", row.id);
+          results.push({ paymentId: row.id, status: intent.status });
+        } else {
+          // Partial refund: capture only the non-refunded portion. Stripe
+          // voids the remaining authorization automatically.
+          const captureAmount = row.amount_cents - refundAmount;
+          const intent = await stripe.paymentIntents.capture(
+            row.stripe_payment_intent_id,
+            { amount_to_capture: captureAmount }
+          );
+          await supabase
+            .from("payments")
+            .update({ status: intent.status })
+            .eq("id", row.id);
+          results.push({ paymentId: row.id, status: intent.status });
+        }
+      } else if (row.status === "succeeded") {
+        await stripe.refunds.create({
+          payment_intent: row.stripe_payment_intent_id,
+          amount: refundAmount,
+          reason: "requested_by_customer",
+        });
+        const intent = await stripe.paymentIntents.retrieve(
+          row.stripe_payment_intent_id
+        );
+        await supabase
+          .from("payments")
+          .update({ status: intent.status })
+          .eq("id", row.id);
+        results.push({ paymentId: row.id, status: intent.status });
+      }
+    } catch (err) {
+      // Best-effort: never block the cancellation flow on Stripe errors.
+      console.error(
+        "refundDepositForCancellation failed",
+        row.id,
+        err
+      );
+    }
+  }
+
+  return results;
+}
+
 export async function refundPayment(input: RefundPaymentInput) {
   const { data: payment, error } = await supabase
     .from("payments")
