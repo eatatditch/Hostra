@@ -17,7 +17,7 @@ branch names and PR titles); body can be edited freely.
 
 ## Phase 2 — Ops visibility
 
-- [ ] **Day 6 · reservation-grid** — Timeline view at `/dashboard/grid`: tables (rows) × 15-min slots (cols). Reservations render as blocks. Drag a block to reassign time/table (calls existing `reservation.update` / `reservation.seat`).
+- [x] **Day 6 · reservation-grid** — Timeline view at `/dashboard/grid`: tables (rows) × 15-min slots (cols). Reservations render as blocks. Drag a block to reassign time/table (calls existing `reservation.update` / `reservation.seat`).
 - [ ] **Day 7 · audit-log** — `audit_events` table (id, actor_id, location_id, entity_type, entity_id, action, before, after, created_at). Wrap mutations in reservation/waitlist/guest routers. Admin-only viewer at `/admin/audit`.
 - [ ] **Day 8 · server-sections** — Add `section` column on tables. Add `server_id`, `section` to reservations set at seating. Round-robin server assignment among on-duty staff within the table's section.
 - [ ] **Day 9 · smart-quote-times** — Replace the constant-average logic in `estimateWaitTime` with a per-party-size percentile (p75) over last 30 days of visits. Include variance on the host UI.

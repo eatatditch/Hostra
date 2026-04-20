@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ListOrdered,
   Grid3X3,
+  Rows3,
   Users,
   Settings,
   BarChart3,
@@ -23,6 +24,7 @@ import { useState } from "react";
 
 const allNavItems = [
   { href: "/dashboard", label: "Host", icon: LayoutDashboard, roles: ["admin", "manager", "host"] },
+  { href: "/dashboard/grid", label: "Grid", icon: Rows3, roles: ["admin", "manager", "host"] },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, roles: ["admin", "manager", "host"] },
   { href: "/waitlist", label: "Waitlist", icon: ListOrdered, roles: ["admin", "manager", "host"] },
   { href: "/guests", label: "Guests", icon: Users, roles: ["admin", "manager", "host"] },
@@ -46,6 +48,13 @@ export function StaffNav() {
   // Split into primary (shown in bottom bar) and overflow (in "more" menu)
   const primaryItems = navItems.slice(0, 5);
   const overflowItems = navItems.slice(5);
+
+  // Pick the nav entry whose href best matches the current path. Longer
+  // hrefs win so nested routes like `/dashboard/grid` don't also light up
+  // the parent `/dashboard` tab.
+  const activeHref = navItems
+    .filter((item: any) => pathname === item.href || pathname.startsWith(item.href + "/"))
+    .sort((a: any, b: any) => b.href.length - a.href.length)[0]?.href;
 
   async function handleLogout() {
     const supabase = createSupabaseBrowser();
@@ -93,7 +102,7 @@ export function StaffNav() {
       <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-border safe-area-bottom">
         <div className="flex items-center justify-around py-1">
           {primaryItems.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = activeHref === item.href;
             return (
               <Link
                 key={item.href}
@@ -116,7 +125,7 @@ export function StaffNav() {
                 onClick={() => setShowMore(!showMore)}
                 className={cn(
                   "flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-medium transition-colors min-w-[52px] cursor-pointer",
-                  showMore || overflowItems.some((i) => pathname.startsWith(i.href))
+                  showMore || overflowItems.some((i) => activeHref === i.href)
                     ? "text-primary"
                     : "text-text-muted"
                 )}
@@ -130,7 +139,7 @@ export function StaffNav() {
                   <div className="fixed inset-0 z-40" onClick={() => setShowMore(false)} />
                   <div className="absolute bottom-full right-0 mb-2 bg-white rounded-xl border border-border shadow-lg z-50 py-2 min-w-[160px]">
                     {overflowItems.map((item) => {
-                      const active = pathname.startsWith(item.href);
+                      const active = activeHref === item.href;
                       return (
                         <Link
                           key={item.href}
